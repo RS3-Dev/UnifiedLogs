@@ -72,6 +72,7 @@ if package ~= nil and package.loaded ~= nil then
         "Resources/Features/quests/data/quest_catalog",
         "Resources/Features/quests/quest_details_panel",
         "Resources/Features/quests/quest_feature",
+        "Resources/Features/quests/quest_helper",
         "Resources/Features/quests/quest_page",
         "Resources/Features/quests/quest_requirements",
         "Resources/Features/slayer/data/slayer_region_catalog",
