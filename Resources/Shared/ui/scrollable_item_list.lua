@@ -16,19 +16,19 @@ local BODY_BOTTOM_PADDING = 4
 local function setVisible(component, visible) component.hidden = not visible end
 
 function ScrollableItemList:_CreateRowSlot()
-    local parent = ui.Layer.new(self.scroll.content)
+    local parent = UI.ContentLayer(self.scroll.content)
     parent.clickthrough = true
     local slot = {
         root = parent,
-        background = ui.Rectangle.new(parent),
-        title = ui.Text.new(parent),
-        count = ui.Text.new(parent),
+        background = UI.NewComponent(ui.Rectangle, parent),
+        title = UI.NewComponent(ui.Text, parent),
+        count = UI.NewComponent(ui.Text, parent),
         completionMark = ProgressStyle.CompletionMark(parent, 0, 0, false),
-        wedge = ui.Rectangle.new(parent),
-        borderTop = ui.Rectangle.new(parent),
-        borderBottom = ui.Rectangle.new(parent),
-        borderLeft = ui.Rectangle.new(parent),
-        borderRight = ui.Rectangle.new(parent),
+        wedge = UI.NewComponent(ui.Rectangle, parent),
+        borderTop = UI.NewComponent(ui.Rectangle, parent),
+        borderBottom = UI.NewComponent(ui.Rectangle, parent),
+        borderLeft = UI.NewComponent(ui.Rectangle, parent),
+        borderRight = UI.NewComponent(ui.Rectangle, parent),
     }
     slot.background.fill = true
     slot.background.clickthrough = true

@@ -67,7 +67,7 @@ end
 function CapeRequirementsView.new(parent, options)
     local self = setmetatable({}, CapeRequirementsView)
     self.options = options
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true
@@ -84,17 +84,17 @@ function CapeRequirementsView:Remember(component)
 end
 
 function CapeRequirementsView:CreateRowSlot()
-    local parent = ui.Layer.new(self.scroll.content)
+    local parent = UI.ContentLayer(self.scroll.content)
     parent.clickthrough = true
     local slot = {
         root = parent,
-        background = ui.Rectangle.new(parent),
-        wedge = ui.Rectangle.new(parent),
-        number = ui.Text.new(parent),
-        name = ui.Text.new(parent),
-        description = ui.Text.new(parent),
+        background = UI.NewComponent(ui.Rectangle, parent),
+        wedge = UI.NewComponent(ui.Rectangle, parent),
+        number = UI.NewComponent(ui.Text, parent),
+        name = UI.NewComponent(ui.Text, parent),
+        description = UI.NewComponent(ui.Text, parent),
         mark = ProgressStyle.CompletionMark(parent, 0, 0, false),
-        divider = ui.Rectangle.new(parent),
+        divider = UI.NewComponent(ui.Rectangle, parent),
         branches = {},
     }
     slot.background.clickthrough = false
@@ -110,7 +110,7 @@ end
 -- Build a requirement branch
 function CapeRequirementsView:Branch(slot, index)
     while #slot.branches < index do
-        slot.branches[#slot.branches + 1] = ui.Rectangle.new(slot.root)
+        slot.branches[#slot.branches + 1] = UI.NewComponent(ui.Rectangle, slot.root)
     end
     return slot.branches[index]
 end

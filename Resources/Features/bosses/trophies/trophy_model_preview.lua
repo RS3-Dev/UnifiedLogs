@@ -1,4 +1,5 @@
 -- Render models for one trophy view
+local UI = require("Resources/Shared/ui/components")
 local TrophyModels = require("Resources/Features/bosses/trophies/trophy_models")
 local TrophyModelPreview = {}
 local MODEL_INSET = 20
@@ -8,7 +9,7 @@ local MODEL_PART_LIMIT = 3
 
 function TrophyModelPreview.Create(self)
     local modelHeight = math.max(80, self.bodyHeight - (self.modelLabelHeight or MODEL_LABEL_HEIGHT) - MODEL_INSET * 2)
-    self.modelGroup = ui.ModelGroup.new(self.root)
+    self.modelGroup = UI.NewComponent(ui.ModelGroup, self.root)
     self.modelBaseX = self.previewX + MODEL_INSET
     self.modelBaseY = self.bodyY + MODEL_INSET
     self.modelWidth = self.previewWidth - MODEL_INSET * 2
@@ -29,7 +30,7 @@ function TrophyModelPreview.Create(self)
 
     self.modelParts = {}
     for partIndex = 1, MODEL_PART_LIMIT do
-        local part = ui.Model.new(self.modelGroup)
+        local part = UI.NewComponent(ui.Model, self.modelGroup)
         part:SetPos(0, 0)
         part:SetSize(self.modelWidth, self.modelHeight)
         part.rgb = 0xFFFFFF

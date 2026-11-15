@@ -19,7 +19,7 @@ end
 
 function FurniturePlansTab.new(parent, options)
     local self = setmetatable({ options = options }, FurniturePlansTab)
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetSize(options.width, options.height)
     self.root.clickthrough = true
     UI.Text(self.root, "FURNITURE PLANS", 12, 2, options.width - 140, 30, {

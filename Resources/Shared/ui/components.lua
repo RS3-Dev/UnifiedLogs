@@ -4,40 +4,47 @@ local UI = {}
 -- Preserve PrettyUI cursor defaults with one sentinel
 UI.NO_CURSOR = {}
 
--- Dynamic descendants share the static parent's category/ID allocation space.
--- Prefer category zero's larger ID range for lists; other categories are small.
-function UI.RootLayer(parent)
+-- Keep structural hosts in category zero so they can contain PrettyUI views,
+-- windows, tabs and tooltips. Their managed descendants use automatic allocation.
+-- Check the shared static namespace before calling the native constructor.
+function UI.ContentLayer(parent)
     local collection = parent.parentStatic or parent
-    local used, visited, pending, nextID = {}, {}, { collection }, 0
-    -- Iterators may expose only direct children, so inspect dynamic descendants too.
+    assert(parent == collection or parent.categoryID == 0,
+        "Unified Logs content layers require a static or category-zero parent")
+    local used, visited, pending = {}, {}, { collection }
     while #pending > 0 do
         local current = table.remove(pending)
-        local ok, iterate = pcall(function() return current.IterateDynamicComponents end)
-        if ok and type(iterate) == "function" then
-            iterate(current, function(component)
-                local category = component.categoryID
-                local key = tostring(category) .. ":" .. tostring(component.dynamicID)
-                used[category] = true
-                if category == 0 then nextID = math.max(nextID, component.dynamicID + 1) end
-                if not visited[key] then
-                    visited[key] = true
-                    pending[#pending + 1] = component
-                end
-                return false
-            end)
-        end
+        assert(type(current.IterateDynamicComponents) == "function",
+            "Unified Logs could not inspect the UI allocation namespace")
+        current:IterateDynamicComponents(function(component)
+            if component.categoryID == 0 then used[component.dynamicID] = true end
+            if not visited[component] then
+                visited[component] = true
+                pending[#pending + 1] = component
+            end
+            return false
+        end)
     end
-    local category = nextID < 4096 and 0 or nil
-    if category == nil then
-        for candidate = 1, 235 do
-            if not used[candidate] then category = candidate; break end
-        end
-    end
-    assert(category ~= nil, "Unified Logs could not find a free UI category")
-    local root = ui.Layer.new(parent, category, category == 0 and nextID or 0)
+    local nextID = parent == collection and 0 or parent.dynamicID + 1
+    while used[nextID] do nextID = nextID + 1 end
+    assert(nextID < 4096, "Unified Logs could not find a free category-zero UI ID")
+    return ui.Layer.new(parent, 0, nextID)
+end
+
+-- Preserve the full-size, clickthrough ownership root used by pages and windows.
+function UI.RootLayer(parent)
+    local root = UI.ContentLayer(parent)
     root:SetSize(0, 0, 1, 1)
     root.clickthrough = true
     return root
+end
+
+-- Explicitly opt custom controls into PrettyUI 1.3's guarded allocator, including
+-- controls mounted beneath raw client-owned or category-zero content layers.
+function UI.NewComponent(nativeType, parent)
+    assert(prettyui ~= nil and type(prettyui.NewComponent) == "function",
+        "Unified Logs requires PrettyUI 1.3.0 or newer. Update PrettyUI and reload the plugin.")
+    return prettyui.NewComponent(nativeType, parent, { categoryID = "auto" })
 end
 
 -- Remove a component cursor
@@ -62,7 +69,7 @@ end
 
 -- Create a rectangle
 function UI.Rectangle(parent, x, y, width, height, colour)
-    return UI.BindRectangle(ui.Rectangle.new(parent), x, y, width, height, colour)
+    return UI.BindRectangle(UI.NewComponent(ui.Rectangle, parent), x, y, width, height, colour)
 end
 
 -- Bind text to a component
@@ -84,7 +91,7 @@ end
 
 -- Create text
 function UI.Text(parent, value, x, y, width, height, options)
-    return UI.BindText(ui.Text.new(parent), value, x, y, width, height, options)
+    return UI.BindText(UI.NewComponent(ui.Text, parent), value, x, y, width, height, options)
 end
 
 -- Create a frame
@@ -166,6 +173,7 @@ function UI.Tabs(parent, modes, activeMode, onChange)
         indexByID[mode.id] = index
     end
     return prettyui.Tabs.new(parent, entries, {
+        categoryID = "auto",
         x = 0,
         y = 0,
         width = parent.width,

@@ -33,7 +33,7 @@ function SidebarLayout.Attach(root, options)
     local workspace
     if options.createWorkspace ~= false then
         local x = width + (options.gap or 8)
-        workspace = ui.Layer.new(root)
+        workspace = UI.ContentLayer(root)
         workspace:SetPos(x, 0)
         workspace:SetSize(root.width - x, root.height)
         workspace.clickthrough = true
@@ -49,7 +49,7 @@ end
 
 function SidebarLayout.Create(parent, options)
     options = options or {}
-    local root = ui.Layer.new(parent)
+    local root = UI.ContentLayer(parent)
     root:SetPos(options.x or 0, options.y or 0)
     root:SetSize(options.width, options.height)
     root.clickthrough = true

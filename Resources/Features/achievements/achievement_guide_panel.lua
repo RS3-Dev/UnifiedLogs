@@ -18,7 +18,7 @@ function AchievementGuidePanel.new(parent, guide, options)
     local self = setmetatable({}, AchievementGuidePanel)
     self.guide = guide
     self.options = options
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = false

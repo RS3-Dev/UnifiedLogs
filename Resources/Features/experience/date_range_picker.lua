@@ -34,7 +34,7 @@ function DateRangePicker.Build(parent, options)
     local dateFormat = options.dateFormat
     local gainDates = options.gainDates or {}
 
-    local sheet = ui.Layer.new(parent)
+    local sheet = UI.ContentLayer(parent)
     sheet:SetPos(options.x or 0, options.y or 0)
     sheet:SetSize(width, height)
     sheet.clickthrough = false

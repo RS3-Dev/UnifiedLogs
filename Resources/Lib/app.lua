@@ -203,6 +203,7 @@ function App:ShowXPClockWarning()
     end
     local popup
     popup = prettyui.AchievementPopup.show({
+        categoryID = "auto",
         title = "XP TRACKING PAUSED",
         text = "Enable the in-game clock so Unified Logs can timestamp and resume recording XP.",
         width = 380,
@@ -400,6 +401,7 @@ end
 function App:CreateWindow(windowParent)
     windowParent = self:EnsureWindowParent(windowParent)
     self.window = prettyui.Window.new(windowParent, {
+        categoryID = "auto",
         title = "Unified Logs",
         x = -math.floor(WINDOW_WIDTH / 2),
         y = -math.floor(WINDOW_HEIGHT / 2),
@@ -415,7 +417,7 @@ function App:CreateWindow(windowParent)
         end,
     })
 
-    self.navigation = ui.Layer.new(self.window.content)
+    self.navigation = UI.ContentLayer(self.window.content)
     self.navigation:SetPos(0, 0)
     self.navigation:SetSize(self.window.content.width, NAV_HEIGHT)
     self.navigation.clickthrough = true

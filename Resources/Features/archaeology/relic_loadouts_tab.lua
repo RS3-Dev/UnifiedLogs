@@ -96,7 +96,7 @@ end
 
 function RelicLoadoutsTab:RebuildDetail()
     if self.detailLayer ~= nil then self.detailLayer:Destroy() end
-    self.detailLayer = ui.Layer.new(self.workspace)
+    self.detailLayer = UI.ContentLayer(self.workspace)
     self.detailLayer:SetPos(0, 46)
     self.detailLayer:SetSize(self.workspace.width, math.max(1, self.workspace.height - 46))
     self.detailLayer.clickthrough = true
@@ -158,7 +158,7 @@ function RelicLoadoutsTab:RebuildDetail()
         )
         UI.Rectangle(self.detailLayer, 8, y + 8, 68, 68, 0x0D0B08FF)
         if spriteID ~= nil then
-            local icon = ui.Sprite.new(self.detailLayer)
+            local icon = UI.NewComponent(ui.Sprite, self.detailLayer)
             icon:SetPos(10, y + 10)
             icon:SetSize(64, 64)
             icon.spriteID = spriteID
@@ -189,7 +189,7 @@ function RelicLoadoutsTab:RebuildDetail()
         if hasRecord then
             local powerIcon = tonumber(self.loadouts.powerIconSpriteId)
             if powerIcon ~= nil then
-                local icon = ui.Sprite.new(self.detailLayer)
+                local icon = UI.NewComponent(ui.Sprite, self.detailLayer)
                 icon:SetPos(84, y + 62)
                 icon:SetSize(16, 16)
                 icon.spriteID = powerIcon

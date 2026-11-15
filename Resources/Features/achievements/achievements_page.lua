@@ -1,4 +1,5 @@
 -- Render the achievements page
+local UI = require("Resources/Shared/ui/components")
 local LazyTabs = require("Resources/Shared/ui/lazy_tabs")
 local CapeOverview = require("Resources/Features/achievements/cape_overview")
 local CapeRequirements = require("Resources/Features/achievements/cape_requirements")
@@ -15,7 +16,7 @@ function AchievementsPage.new(parent, options)
     self.activeView = nil
     self.snapshot = CapeRequirements.NewSnapshot()
     self.searchDirty = false
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(options.x or 0, options.y or 0)
     self.root:SetSize(options.width, options.height)
     self.root.clickthrough = true

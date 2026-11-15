@@ -74,7 +74,7 @@ function ExperienceHistoryPage.new(parent, options)
     self.historyDailySkillID = nil
     self.dataDirty = true
 
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true
@@ -151,7 +151,7 @@ function ExperienceHistoryPage:DestroyModeContent(root)
 end
 
 function ExperienceHistoryPage:CreateModeView(mode, page)
-    local root = ui.Layer.new(page)
+    local root = UI.ContentLayer(page)
     root:SetSize(page.width, page.height)
     root.clickthrough = true
     self.modeRoot = root

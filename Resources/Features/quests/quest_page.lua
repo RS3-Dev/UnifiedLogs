@@ -122,7 +122,7 @@ function QuestPage.new(parent, options)
         hoverCursor = UI.NO_CURSOR,
     })
 
-    self.filterSheet = ui.Layer.new(self.root)
+    self.filterSheet = UI.ContentLayer(self.root)
     self.filterSheet:SetPos(SIDEBAR_WIDTH - FILTER_SHEET_WIDTH - 10, LIST_TOP)
     self.filterSheet:SetSize(FILTER_SHEET_WIDTH, FILTER_SHEET_HEIGHT)
     self.filterSheet.clickthrough = false
@@ -201,7 +201,7 @@ function QuestPage.new(parent, options)
     })
     self.filterSheet.hidden = true
 
-    self.workspace = ui.Layer.new(self.root)
+    self.workspace = UI.ContentLayer(self.root)
     self.workspace:SetPos(WORKSPACE_X, 0)
     self.workspace:SetSize(self.root.width - WORKSPACE_X, self.root.height)
     self.workspace.clickthrough = true
@@ -298,7 +298,7 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
     -- Reserve the end of supported rows for a small quest icon.
     for _, row in ipairs(self.sidebarList.list.rows or {}) do
         if self.helperQuests[row.entry.id] ~= nil then
-            local sprite = ui.Sprite.new(row.root)
+            local sprite = UI.NewComponent(ui.Sprite, row.root)
             sprite:SetPos(row.root.width - 23, 8)
             sprite:SetSize(16, 16)
             sprite.spriteID = QUEST_SPRITE
@@ -386,6 +386,7 @@ function QuestPage:OpenQuestHelper(questID)
     if self.helperPopup ~= nil then self.helperPopup:Destroy(); self.helperPopup = nil end
     if prettyui.AchievementPopup ~= nil and prettyui.AchievementPopup.show ~= nil then
         self.helperPopup = prettyui.AchievementPopup.show({
+            categoryID = "auto",
             title = "QUESTHELPER",
             text = reason == "not_ready" and "QuestHelper is not ready. Try again once you are in game."
                 or "Could not open this quest. Check that QuestHelper is enabled and supports it.",

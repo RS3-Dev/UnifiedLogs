@@ -1,4 +1,5 @@
 -- Render read-only item grids with one shared tooltip
+local UI = require("Resources/Shared/ui/components")
 local ItemGrid = {}
 ItemGrid.__index = ItemGrid
 
@@ -39,7 +40,7 @@ function ItemGrid.new(parent, entries, options)
     self.slots = {}
     self.tooltipOffset = options._tooltipOffset
 
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(options.x or 0, options.y or 0)
     self.root:SetSize(self.capacity * SLOT_SIZE + (self.capacity - 1) * self.slotGap, SLOT_SIZE)
     self.root.clickthrough = true
@@ -47,7 +48,7 @@ function ItemGrid.new(parent, entries, options)
 
     -- Move one tooltip proxy over the hovered slot
     local tooltipParent = options._tooltipParent or parent
-    self.tooltipTarget = ui.Layer.new(tooltipParent)
+    self.tooltipTarget = UI.ContentLayer(tooltipParent)
     self.tooltipTarget:SetPos(-100000, -100000)
     -- Match the visible slot footprint for tooltip placement
     self.tooltipTarget:SetSize(SLOT_SIZE, SLOT_SIZE)
@@ -61,24 +62,24 @@ function ItemGrid.new(parent, entries, options)
 
     for index = 1, self.capacity do
         local slot = { index = index, disabled = false }
-        slot.root = ui.Layer.new(self.root)
+        slot.root = UI.ContentLayer(self.root)
         slot.root:SetPos((index - 1) * (SLOT_SIZE + self.slotGap), 0)
         slot.root:SetSize(SLOT_SIZE, SLOT_SIZE)
         slot.root.clickthrough = false
         bindWheel(slot.root, options._onScrollWheel)
 
-        slot.background = ui.Sprite.new(slot.root)
+        slot.background = UI.NewComponent(ui.Sprite, slot.root)
         slot.background:SetSize(SLOT_SIZE, SLOT_SIZE)
         slot.background.spriteID = prettyui.Sprites.ITEM_GRID_BACKGROUND
         slot.background.clickthrough = true
 
-        slot.item = ui.Sprite.new(slot.root)
+        slot.item = UI.NewComponent(ui.Sprite, slot.root)
         slot.item:SetPos(4, 4)
         slot.item:SetSize(32, 32)
         slot.item.clickthrough = true
         slot.item.hidden = true
 
-        slot.disabledOverlay = ui.Rectangle.new(slot.root)
+        slot.disabledOverlay = UI.NewComponent(ui.Rectangle, slot.root)
         slot.disabledOverlay:SetPos(4, 4)
         slot.disabledOverlay:SetSize(32, 32)
         slot.disabledOverlay.fill = true
@@ -126,7 +127,7 @@ function ItemGrid:SetEntries(entries, states)
         slot.spriteID = spriteID ~= nil and spriteID >= 0 and spriteID or nil
         if slot.spriteID ~= nil and slot.icon == nil then
             -- Ordinary collection grids do not need extra sprite components.
-            slot.icon = ui.Sprite.new(slot.root)
+            slot.icon = UI.NewComponent(ui.Sprite, slot.root)
             slot.icon:SetPos(4, 4)
             slot.icon:SetSize(32, 32)
             slot.icon.clickthrough = true

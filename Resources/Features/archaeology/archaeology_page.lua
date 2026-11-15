@@ -1,4 +1,5 @@
 -- Render the archaeology page
+local UI = require("Resources/Shared/ui/components")
 local LazyTabs = require("Resources/Shared/ui/lazy_tabs")
 local GameData = require("Resources/Lib/game_data")
 local MysteriesTab = require("Resources/Features/archaeology/mysteries_tab")
@@ -17,7 +18,7 @@ function ArchaeologyPage.new(parent, options)
     self.state = self.options.state
     self.activeView = nil
 
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true

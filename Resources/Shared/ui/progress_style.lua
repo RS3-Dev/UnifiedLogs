@@ -40,7 +40,7 @@ end
 
 -- Draw a completion mark
 function ProgressStyle.CompletionMark(parent, x, y, complete)
-    local mark = ui.Sprite.new(parent)
+    local mark = UI.NewComponent(ui.Sprite, parent)
     ProgressStyle.PositionCompletionMark(mark, x, y)
     mark.clickthrough = true
     ProgressStyle.SetCompletionMark(mark, complete)
