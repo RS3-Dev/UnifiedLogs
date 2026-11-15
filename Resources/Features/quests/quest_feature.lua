@@ -23,6 +23,11 @@ function Feature.CreatePage(parent, context)
         showMiniquests = state.questShowMiniquests,
         showSeasonalQuests = state.questShowSeasonalQuests,
         availableInQH = state.questAvailableInQH,
+        requirementsMet = state.questRequirementsMet,
+        onRequirementsMetChange = function(enabled)
+            state.questRequirementsMet = enabled == true
+            context.saveState()
+        end,
         sortBy = state.questSortBy,
         useCumulativeRequirements = state.questUseCumulativeRequirements,
         orderView = state.questOrderView,
