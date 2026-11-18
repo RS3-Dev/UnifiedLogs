@@ -14,16 +14,17 @@ local QUANTITY_MODE = ui.ObjectQuantityDisplayMode.ALWAYS or 2
 local VIRTUAL_EVENT = "unifiedlogs_collectors_virtual_rows"
 
 -- Resolve an object from an item
-local function objectFromItem(item)
+local function objectFromItem(item, cache)
     if config == nil or config.Obj == nil or type(item) ~= "table" then return nil end
+    if cache[item] ~= nil then return cache[item] end
     local configName = tostring(item.configName or "")
     if configName ~= "" then
         local ok, object = pcall(function() return config.Obj[configName] end)
-        if ok and object ~= nil then return object end
+        if ok and object ~= nil then cache[item] = object; return object end
     end
     if item.id ~= nil and config.Obj.FromID ~= nil then
         local ok, object = pcall(function() return config.Obj.FromID(item.id) end)
-        if ok then return object end
+        if ok then cache[item] = object; return object end
     end
     return nil
 end
@@ -78,6 +79,7 @@ function CollectorCollectionList.new(parent, options)
     self.parent = parent
     self.options = options or {}
     self.grids = {}
+    self.objectCache = {}
     self.virtualRenderPending = false
 
     Event.Logic.Unsubscribe(VIRTUAL_EVENT)
@@ -117,6 +119,7 @@ function CollectorCollectionList:SetData(data, preserveScroll)
     local _, requestedHeight = buildLayouts(groups, showGroupHeaders, estimatedRowWidth)
 
     self.rowScroll = prettyui.SimpleView.new(self.parent, {
+        categoryID = "auto",
         x = 0,
         y = scrollY,
         width = self.parent.width,
@@ -189,7 +192,7 @@ function CollectorCollectionList:DrawRecord(layout)
             for index = first, last do
                 local item = items[index]
                 objects[#objects + 1] = {
-                    object = objectFromItem(item),
+                    object = objectFromItem(item, self.objectCache),
                     tooltip = item.name,
                 }
             end
@@ -286,6 +289,14 @@ function CollectorCollectionList:Refresh()
         end
     end
     self:RenderRange(first or 1, last or 0)
+    if self.options.onVisibleRecords then
+        local records = {}
+        for index = first or 1, last or 0 do
+            local layout = layouts[index]
+            if layout.entry then records[#records + 1] = layout.entry.record end
+        end
+        self.options.onVisibleRecords(records)
+    end
 end
 
 function CollectorCollectionList:Destroy()

@@ -27,6 +27,7 @@ end
 local function keybindRow(parent, x, y, width, binding, onChange)
     local labelWidth = 92
     prettyui.Text.new(parent, {
+        categoryID = "auto",
         text = "Open keybind",
         x = x,
         y = y,
@@ -37,6 +38,7 @@ local function keybindRow(parent, x, y, width, binding, onChange)
     })
 
     return prettyui.KeybindField.new(parent, {
+        categoryID = "auto",
         x = x + labelWidth,
         y = y,
         width = width - labelWidth,

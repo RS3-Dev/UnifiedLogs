@@ -4,6 +4,7 @@ local SidebarList = require("Resources/Shared/ui/sidebar_list")
 local ScrollableItemList = require("Resources/Shared/ui/scrollable_item_list")
 local SidebarLayout = require("Resources/Shared/ui/sidebar_layout")
 local ProgressStyle = require("Resources/Shared/ui/progress_style")
+local Preparer = require("Resources/Shared/collections/collection_preparer")
 
 local RelicsTab = {}
 RelicsTab.__index = RelicsTab
@@ -58,9 +59,13 @@ function RelicsTab:BuildSidebar()
             for _, record in ipairs(self.records) do
                 if category == ALL_RELICS or record.category == category then
                     total = total + 1
-                    local value = GameData.VariableValueByID(record.unlockVarBitId)
-                    if value == nil then value = GameData.TrackingValue(record.unlockVariable) end
-                    if not isUnlocked(value) then complete = false end
+                    if self.options.deferCollections and self.selected == ALL_RELICS then
+                        if self.preparer == nil or self.preparer.complete[record] ~= true then complete = false end
+                    else
+                        local value = GameData.VariableValueByID(record.unlockVarBitId)
+                        if value == nil then value = GameData.TrackingValue(record.unlockVariable) end
+                        if not isUnlocked(value) then complete = false end
+                    end
                 end
             end
             entries[index] = { id = category, label = category, complete = total > 0 and complete }
@@ -94,6 +99,7 @@ function RelicsTab:SelectedRecords()
 end
 
 function RelicsTab:DestroyContent()
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
     if self.itemLedger ~= nil then self.itemLedger:Destroy() end
     self.itemLedger = nil
     if self.scroll ~= nil then self.scroll:Destroy() end
@@ -102,6 +108,11 @@ end
 
 -- Rebuild relic rows
 function RelicsTab:Rebuild(preserveScroll)
+    if self.options.deferCollections and self.selected == ALL_RELICS then
+        self:RebuildDeferred(preserveScroll)
+        return
+    end
+    if self.options.progress then self.options.progress.viewport = false end
     if ProgressStyle.greenLogEnabled then self:BuildSidebar() end
     local previousY = preserveScroll and self.scroll ~= nil and self.scroll.scrollY or 0
     self:DestroyContent()
@@ -174,6 +185,7 @@ function RelicsTab:Rebuild(preserveScroll)
     local scrollHeight = math.max(120, self.workspace.height - scrollY)
     local rowWidth = math.max(300, self.workspace.width - 18)
     self.scroll = prettyui.SimpleView.new(self.workspace, {
+        categoryID = "auto",
         x = 0,
         y = scrollY,
         width = self.workspace.width,
@@ -189,6 +201,60 @@ function RelicsTab:Rebuild(preserveScroll)
     self.itemLedger:Update(recordGroups)
     self.scroll:SetScrollPosition(preserveScroll and previousY or 0)
     self.itemLedger:Refresh()
+end
+
+-- Resolve aggregate relic state and item configs only as preparation jobs run.
+function RelicsTab:RebuildDeferred(preserveScroll)
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
+    self.options.progress.viewport = true
+    self.heading.content = "MONOLITH RELICS"
+    local height = math.max(120, self.workspace.height - 46)
+    if self.itemLedger == nil then
+        self:DestroyContent()
+        self.scroll = prettyui.SimpleView.new(self.workspace, { categoryID = "auto", x = 0, y = 46,
+            width = self.workspace.width, height = height, contentHeight = height, scrollStep = 44 })
+        self.itemLedger = ScrollableItemList.new(self.scroll, {
+            rowWidth = math.max(300, self.workspace.width - 18), quantityMode = QUANTITY_MODE,
+            emptyText = "No relic data was supplied by the current manifest.",
+        })
+    end
+    self.objectCache = self.objectCache or {}
+    self.preparer = Preparer.new({
+        isVisible = self.options.isVisible,
+        prepareEntry = function(record)
+            local value = self.options.readValue(record.unlockVarBitId)
+            if value == nil then value = self.options.readValue(record.unlockVariable) end
+            local object = self.objectCache[record]
+            if object == nil then object = GameData.ObjectFromID(record.objectId); self.objectCache[record] = object end
+            return { object = object, tooltip = tooltip(record) }, isUnlocked(value)
+        end,
+        onChanged = function() self:RefreshDeferredProgress() end,
+    })
+    local byCategory, names, rank = {}, {}, {}
+    for index, name in ipairs(CATEGORY_ORDER) do rank[name] = index end
+    for _, record in ipairs(self.records) do
+        local category = record.category or "Other"
+        if byCategory[category] == nil then byCategory[category] = {}; names[#names + 1] = category end
+        byCategory[category][#byCategory[category] + 1] = record
+    end
+    table.sort(names, function(left, right)
+        local l, r = rank[left] or 100, rank[right] or 100
+        if l ~= r then return l < r end
+        return left < right
+    end)
+    local groups = {}
+    for _, name in ipairs(names) do groups[#groups + 1] = self.preparer:AddGroup(name, byCategory[name]) end
+    self.itemLedger:Update(groups, { preserveScroll = preserveScroll })
+    self:RefreshDeferredProgress()
+    self.preparer:Start()
+end
+
+function RelicsTab:RefreshDeferredProgress()
+    local complete, total = 0, 0
+    for _, group in ipairs(self.preparer.groups) do complete, total = complete + group.collected, total + group.total end
+    self.summary.content = self.preparer.pending > 0 and "Loading..." or tostring(complete) .. "/" .. tostring(total)
+    self.itemLedger:Refresh()
+    if self.preparer.pending == 0 and ProgressStyle.greenLogEnabled then self:BuildSidebar() end
 end
 
 function RelicsTab:Destroy()

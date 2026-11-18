@@ -128,10 +128,7 @@ local function collectEntries(value, entries, seenText, visited, depth)
     if kind == "userdata" then collectExposedText(value, entries, seenText) end
 
     if kind == "table" then
-        local count = 0
         for _, key in ipairs(orderedKeys(value)) do
-            count = count + 1
-            if count > 128 then break end
             collectEntries(value[key], entries, seenText, visited, depth + 1)
         end
     end
@@ -141,7 +138,9 @@ local function collectEntries(value, entries, seenText, visited, depth)
 end
 
 -- Build achievement guide entries
-function AchievementText.GuideEntries(achievement)
+function AchievementText.GuideEntries(achievement, options)
+    local verified = require("Resources/Shared/achievements/achievement_guide_rules").Entries(achievement, options)
+    if verified ~= nil then return verified end
     local entries = {}
     local seenText = {}
     local visited = {}

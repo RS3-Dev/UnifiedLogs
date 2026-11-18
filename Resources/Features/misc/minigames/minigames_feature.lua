@@ -8,8 +8,10 @@ local Feature = {
         { name = "Dungeoneering" },
         { name = "Fenmoor Totems" },
         { name = "Forgotten Paintings" },
+        { name = "Menaphos" },
     },
     logs = {},
+    dependencies = { "menaphos" },
     collection = {
         selectedKey = "selectedMinigameGroup",
         searchKey = "minigameSearch",
@@ -18,10 +20,17 @@ local Feature = {
         searchPlaceholder = "Search minigames...",
         emptySearchText = "No minigames match.",
         fallbackHeading = "MINIGAMES",
+        searchItems = true,
+        tooltip = function(object, entry)
+            if entry.hint then
+                return entry.label .. "<br>" .. entry.hint
+            end
+            return require("Resources/Lib/game_data").CollectionTooltip(object, entry)
+        end,
     },
 }
 
-function Feature.LoadData()
+function Feature.LoadData(registry)
     local entries = {}
     for piece = 3, 1, -1 do
         entries[#entries + 1] = {
@@ -51,6 +60,13 @@ function Feature.LoadData()
         },
         ["Forgotten Paintings"] = paintings,
     }
+    local journal = registry and registry.byID.menaphos
+        or require("Resources/Shared/collections/discovery_catalog").Menaphos()
+    local entries = {}
+    for _, group in ipairs(journal.groups) do
+        for _, entry in ipairs(journal.logs[group.name] or {}) do entries[#entries + 1] = entry end
+    end
+    Feature.logs.Menaphos = entries
 end
 
 return require("Resources/Shared/collections/collection_feature").Define(Feature)

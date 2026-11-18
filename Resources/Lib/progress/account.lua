@@ -26,13 +26,17 @@ function Progress:_Start()
     self.running = true
     Event.Logic.Unsubscribe(EVENT)
     Event.Logic.Subscribe(EVENT, function()
-        local last = math.min(#self.queue, self.queueIndex + BATCH_SIZE - 1)
+        if self.viewport and self.isVisible and not self.isVisible() then return end
+        local budget = self.viewport and 4 or BATCH_SIZE
+        local last = math.min(#self.queue, self.queueIndex + budget - 1)
         while self.queueIndex <= last do
             local reference = self.queue[self.queueIndex]
-            local value = GameData.TrackingValue(reference)
-            self.values[reference] = value
-            self.resolved[reference] = true
-            self.queued[reference] = nil
+            if self.queued[reference] then
+                local value = GameData.TrackingValue(reference)
+                self.values[reference] = value
+                self.resolved[reference] = true
+                self.queued[reference] = nil
+            end
             self.queueIndex = self.queueIndex + 1
         end
         if self.queueIndex <= #self.queue then return end
@@ -65,6 +69,20 @@ function Progress:GetValue(reference)
     return self.values[reference]
 end
 
+-- A bounded viewport worker can resolve a value without queuing another pass.
+function Progress:ReadValueNow(reference)
+    if type(reference) ~= "string" and type(reference) ~= "number" then return nil end
+    if reference == "" then return nil end
+    self.requested[reference] = true
+    if not self.resolved[reference] then
+        self.values[reference] = GameData.TrackingValue(reference)
+        self.resolved[reference], self.queued[reference] = true, nil
+    end
+    return self.values[reference]
+end
+
+function Progress:PeekValue(reference) return self.values[reference] end
+
 function Progress:IsCollected(entry, value)
     if value == nil then value = self:GetValue(entry.v) end
     local minimum = tonumber(entry.min) or 1
@@ -80,6 +98,7 @@ function Progress:BeginScope()
     self.queue = {}
     self.queueIndex = 1
     self.queued = {}
+    self.viewport = false
 end
 
 function Progress:Refresh()

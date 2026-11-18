@@ -9,20 +9,14 @@ end
 local Feature = {
     id = "achievements",
     label = "Achievements",
-    modes = modes,
+    capeModes = modes,
+    dependencies = { "quests" },
+    modes = { { id = "overview", label = "Overview" }, { id = "achievements", label = "Achievements" },
+        { id = "quests", label = "Quests" }, { id = "area_tasks", label = "Area Tasks" } },
     capes = CapeCatalog.ordered,
 }
 
 function Feature.CreatePage(parent, context)
-    return require("Resources/Features/achievements/achievements_page").new(parent, {
-        x = context.x,
-        y = context.y,
-        width = context.width,
-        height = context.height,
-        section = Feature,
-        state = context.state,
-        saveState = context.saveState,
-    })
+    return require("Resources/Features/achievements/achievement_section").new(parent, context, Feature)
 end
-
 return Feature

@@ -67,6 +67,7 @@ function QuestDetailsPanel:RenderTitle(state, options)
             self.root, id.Sprite.RS3_ICON_MENU_TAB_QUEST_LIST_0, function()
                 if self.options.onOpenQuestHelper ~= nil then self.options.onOpenQuestHelper(quest.id) end
             end, {
+                categoryID = "auto",
                 x = self.root.width - 198, y = 4, width = 24, height = 24,
                 tooltip = "Open in QuestHelper",
             }
@@ -158,6 +159,7 @@ end
 function QuestDetailsPanel:RenderSkills(state, skillWidth, scrollTop, scrollHeight)
     local skills = state.skills
     self.skillScroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         x = 0,
         y = scrollTop,
         width = skillWidth,
@@ -271,6 +273,7 @@ end
 function QuestDetailsPanel:RenderOrder(state, options, questX, questWidth, scrollTop, scrollHeight)
     local orderRows = state.orderRows
     self.orderScroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         x = questX,
         y = scrollTop,
         width = questWidth,

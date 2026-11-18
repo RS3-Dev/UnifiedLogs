@@ -2,18 +2,10 @@
 local Feature = {
     id = "misc",
     label = "Misc",
-    modes = {
-        { id = "pets", label = "Pets" },
-        { id = "thieving", label = "Thieving" },
-        -- Disabled until outfit items and unlock mappings are ready.
-        -- { id = "skilling_outfits", label = "Skilling Outfits" },
-        { id = "minigames", label = "Minigames" },
-        { id = "enchantments", label = "Enchantments" },
-        { id = "pof", label = "POF" },
-    },
+    modes = { { id = "pof", label = "POF" }, { id = "totems", label = "Totems" } },
 }
 
-Feature.dependencies = { "thieving", "pof", "minigames", "pets", "enchantments", "skilling_outfits" }
+Feature.dependencies = { "pof", "totems" }
 function Feature.CreatePage(parent, context)
     local page = require("Resources/Features/misc/misc_page").new(parent, {
         x = context.x,
@@ -23,8 +15,13 @@ function Feature.CreatePage(parent, context)
         section = Feature,
         state = context.state,
         progress = context.progress,
+        deferCollections = context.deferCollections,
+        isVisible = context.isVisible,
         saveState = context.saveState,
         thieving = context.registry.byID.thieving,
+        totemOptions = require("Resources/Shared/collections/collection_log_page").Options(
+            context.registry.byID.totems, context
+        ),
         skillingOutfitOptions = require("Resources/Shared/collections/collection_log_page").Options(
             context.registry.byID.skilling_outfits,
             context

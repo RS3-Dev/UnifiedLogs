@@ -153,7 +153,7 @@ function CollectionGroupPanel.Body(parent, options)
         components,
         UI.Rectangle(parent, x, y, width, height,
             ProgressStyle.Green(options.complete, options.colour or ProgressStyle.ROW_ODD, ProgressStyle.GREEN_BACKGROUND))
-    )
+    ):MoveToBack()
     if options.complete == true and options.showWedge ~= false then
         local wedge = remember(components, ProgressStyle.Wedge(parent, x + 1, y, height))
         wedge.rgba = ProgressStyle.Green(options.complete, wedge.rgba, ProgressStyle.GREEN_BACKGROUND)

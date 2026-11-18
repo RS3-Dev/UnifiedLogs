@@ -1,7 +1,7 @@
 -- Define the experience feature
 local Feature = {
     id = "xp",
-    label = "XP",
+    label = "Skilling",
     modes = {
         { id = "notice", label = "Read First" },
         { id = "overall", label = "Overall" },
@@ -10,7 +10,7 @@ local Feature = {
     },
 }
 
-function Feature.CreatePage(parent, context)
+function Feature.CreateXPPage(parent, context)
     return require("Resources/Features/experience/experience_history_page").new(parent, {
         x = context.x,
         y = context.y,
@@ -23,4 +23,8 @@ function Feature.CreatePage(parent, context)
     })
 end
 
+Feature.dependencies = { "pets", "thieving" }
+function Feature.CreatePage(parent, context)
+    return require("Resources/Features/experience/skilling_page").new(parent, context, Feature)
+end
 return Feature

@@ -10,12 +10,18 @@ local BATCH_SIZE = 25
 local WATCH_EVENT = "unifiedlogs_combat_achievement_state_watch"
 local REFRESH_TICKS = 100
 
-function CombatAchievementStateLoader.new(records, onChanged)
+function CombatAchievementStateLoader.new(records, onChanged, options)
     return setmetatable({
         records = records or {},
         onChanged = onChanged,
         index = nil,
+        options = options or {}, visibleRecords = {},
     }, CombatAchievementStateLoader)
+end
+
+-- The virtualized table supplies its visible rows and overscan buffer.
+function CombatAchievementStateLoader:SetVisibleRecords(records)
+    self.visibleRecords = records or {}
 end
 
 -- Client account state may settle after the first catalogue load.
@@ -44,12 +50,30 @@ function CombatAchievementStateLoader:Refresh()
     end
 
     self.index = 1
+    self.readThisPass = {}
     Event.Logic.Unsubscribe(EVENT)
     Event.Logic.Subscribe(EVENT, function()
-        local changed = false
-        local last = math.min(#self.records, self.index + BATCH_SIZE - 1)
-        for index = self.index, last do
-            local record = self.records[index]
+        if self.options.isVisible and not self.options.isVisible() then return end
+        local changed, requested = false, {}
+        local function enqueue(record)
+            if self.readThisPass[record] then return end
+            self.readThisPass[record] = true
+            requested[#requested + 1] = record
+        end
+        if self.options.viewport then
+            for _, record in ipairs(self.visibleRecords) do
+                if #requested >= 8 then break end
+                enqueue(record)
+            end
+        end
+        local background = 0
+        local limit = self.options.viewport and 4 or BATCH_SIZE
+        while self.index <= #self.records and background < limit do
+            local record = self.records[self.index]
+            self.index = self.index + 1
+            if not self.readThisPass[record] then enqueue(record); background = background + 1 end
+        end
+        for _, record in ipairs(requested) do
             local achievement
             local value
             -- The live mastery requirement can be readable before the ID lookup.
@@ -83,7 +107,6 @@ function CombatAchievementStateLoader:Refresh()
                 record.description = description
             end
         end
-        self.index = last + 1
         if self.index > #self.records then
             self.index = nil
             Event.Logic.Unsubscribe(EVENT)

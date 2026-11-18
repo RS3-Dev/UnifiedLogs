@@ -3,8 +3,8 @@ local BossCategories = {}
 BossCategories.__index = BossCategories
 
 local ALL_CATEGORIES_ID = 0
--- These encounters retain shared pages, with individual bosses in the sidebar.
-local SHARED_DUNGEON_CATEGORIES = { [4854] = true, [4859] = true }
+-- These dungeon categories expose one page per encounter.
+local SPLIT_DUNGEON_CATEGORIES = { [4854] = true, [4859] = true }
 local DROP_GROUP_ALIASES = {
     ivar = "ivarkingofbones",
     silverquill = "silverquillthedreadhog",
@@ -112,15 +112,18 @@ function BossCategories:OrderedCategories()
     for _, achievement in ipairs(self.achievements) do
         achievementTargets[normalizedLogName(achievement.category)] = true
         achievementTargets[normalizedLogName(achievement.boss)] = true
-        if achievement.categoryID ~= nil and byID[achievement.categoryID] == nil then
-            byID[achievement.categoryID] = {
-                id = achievement.categoryID,
-                name = achievement.category,
+        local split = SPLIT_DUNGEON_CATEGORIES[achievement.categoryID] and achievement.bossID ~= nil
+        local categoryID = split and achievement.bossID or achievement.categoryID
+        if categoryID ~= nil and byID[categoryID] == nil then
+            byID[categoryID] = {
+                id = categoryID,
+                categoryID = split and achievement.categoryID or nil,
+                name = split and achievement.boss or achievement.category,
                 count = 0,
                 searchText = lower(achievement.category),
             }
         end
-        local category = achievement.categoryID ~= nil and byID[achievement.categoryID] or nil
+        local category = categoryID ~= nil and byID[categoryID] or nil
         if category ~= nil then
             category.count = category.count + 1
             category.searchText = category.searchText .. " " .. lower(achievement.boss)
@@ -156,28 +159,7 @@ end
 function BossCategories:CategoryEntries(search, dropsOnly)
     local entries = {}
     local query = trimmedLower(search)
-    local sidebarCategories = {}
-    for _, category in ipairs(self:OrderedCategories()) do
-        local bosses = {}
-        if SHARED_DUNGEON_CATEGORIES[category.id] then
-            for _, achievement in ipairs(self.achievements) do
-                if achievement.categoryID == category.id and achievement.bossID ~= nil
-                    and achievement.bossID ~= category.id then
-                    bosses[achievement.bossID] = {
-                        id = achievement.bossID, name = achievement.boss,
-                        categoryID = category.id, count = category.count,
-                        searchText = lower(achievement.boss) .. " " .. lower(category.name),
-                    }
-                end
-            end
-        end
-        if next(bosses) == nil then
-            sidebarCategories[#sidebarCategories + 1] = category
-        else
-            for _, boss in pairs(bosses) do sidebarCategories[#sidebarCategories + 1] = boss end
-        end
-    end
-    table.sort(sidebarCategories, function(left, right) return lower(left.name) < lower(right.name) end)
+    local sidebarCategories = self:OrderedCategories()
     for _, category in ipairs(sidebarCategories) do
         if
             (query == "" or string.find(category.searchText, query, 1, true) ~= nil)
@@ -208,14 +190,16 @@ function BossCategories:CategoryEntries(search, dropsOnly)
     return entries
 end
 
--- Resolve a sidebar boss to the shared dungeon page without changing its selection.
-function BossCategories:PageCategoryID(categoryID)
-    for _, achievement in ipairs(self.achievements) do
-        if SHARED_DUNGEON_CATEGORIES[achievement.categoryID] and achievement.bossID == categoryID then
-            return achievement.categoryID
-        end
+-- Sidebar IDs now identify the displayed encounter directly.
+function BossCategories:PageCategoryID(categoryID) return categoryID end
+
+-- Apply the same encounter boundary to rows, totals, and completion styling.
+function BossCategories:MatchesCategory(achievement, categoryID)
+    if categoryID == ALL_CATEGORIES_ID then return true end
+    if SPLIT_DUNGEON_CATEGORIES[achievement.categoryID] and achievement.bossID ~= nil then
+        return achievement.bossID == categoryID
     end
-    return categoryID
+    return achievement.categoryID == categoryID
 end
 
 -- Select an available boss category
@@ -223,7 +207,7 @@ function BossCategories:EnsureSelectedCategory(state)
     if state.activeTab == 3 or state.activeTab == 4 or state.activeTab == 5 then return end
     if state.selectedCategoryID == ALL_CATEGORIES_ID then return end
     -- Restore an older shared-page selection to a visible boss entry.
-    if SHARED_DUNGEON_CATEGORIES[state.selectedCategoryID] then
+    if SPLIT_DUNGEON_CATEGORIES[state.selectedCategoryID] then
         for _, category in ipairs(self:CategoryEntries("", state.activeTab == 2)) do
             if category.categoryID == state.selectedCategoryID then
                 state.selectedCategoryID = category.id
@@ -238,7 +222,7 @@ function BossCategories:EnsureSelectedCategory(state)
         end
     end
     for _, achievement in ipairs(self.achievements) do
-        if achievement.categoryID == pageCategoryID then return end
+        if self:MatchesCategory(achievement, pageCategoryID) then return end
     end
     state.selectedCategoryID = ALL_CATEGORIES_ID
     state.activeTab = 1
@@ -260,7 +244,7 @@ function BossCategories:VisibleAchievements(state)
     local query = trimmedLower(state.search)
     local categoryID = self:PageCategoryID(state.selectedCategoryID)
     for _, achievement in ipairs(self.achievements) do
-        local categoryMatches = categoryID == ALL_CATEGORIES_ID or achievement.categoryID == categoryID
+        local categoryMatches = self:MatchesCategory(achievement, categoryID)
         local tierMatches = state.tierFilter == 0 or achievement.tierOrder == state.tierFilter
         local statusMatches = state.statusFilter == 0
             or state.statusFilter == 1 and achievement.complete == true
@@ -287,7 +271,7 @@ end
 function BossCategories:MatchingDropGroups(categoryID, categoryName)
     local targets = { [normalizedLogName(categoryName)] = true }
     for _, achievement in ipairs(self.achievements) do
-        if achievement.categoryID == categoryID then
+        if self:MatchesCategory(achievement, categoryID) then
             targets[normalizedLogName(achievement.boss)] = true
         end
     end

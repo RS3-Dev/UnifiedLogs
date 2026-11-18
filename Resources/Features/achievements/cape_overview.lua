@@ -25,6 +25,11 @@ local BASE_MODEL_SCALE = 1.25
 local MODEL_GROWTH = 1.15
 local MODEL_EVENT = "unifiedlogs_cape_models"
 
+local function summaryFor(self, cape)
+    if self.options.fastSummary then return CapeRequirements.FastSummary(cape) end
+    return CapeRequirements.Summary(cape, self.options.snapshot)
+end
+
 -- Create a clickable cape card
 local function clickableCard(parent, x, y, width, height, action)
     local root = UI.ContentLayer(parent)
@@ -32,6 +37,7 @@ local function clickableCard(parent, x, y, width, height, action)
     root:SetSize(width, height)
     root.clickthrough = false
     local background = UI.Rectangle(root, 0, 0, width, height, CARD_BACKGROUND)
+    background:MoveToBack()
     root:Subscribe(ui.Hook.ONMOUSEOVER, function()
         background.rgba = CARD_HOVER
         return true
@@ -63,6 +69,7 @@ function CapeOverview.new(parent, options)
     self.controls = {}
     self.modelCanvases = {}
     self.pendingModels = {}
+    self.progressCards = {}
     self:Build()
     self:LoadModels()
     return self
@@ -114,11 +121,7 @@ function CapeOverview:Build()
             colour = GOLD,
             alignHorizontal = ui.AlignMode.CENTRE,
         })
-        local summary = CapeRequirements.Summary(cape, self.options.snapshot)
-        local summaryText = summary.available
-                and summary.total > 0
-                and tostring(summary.complete) .. " / " .. tostring(summary.total)
-            or "—"
+        local summaryText = "—"
         local progressX, progressWidth = 1, cardWidth - 2
         UI.Rectangle(control.root, progressX, countY, progressWidth, COUNT_HEIGHT, BAR_BACKGROUND)
         UI.Rectangle(
@@ -129,21 +132,32 @@ function CapeOverview:Build()
             PROGRESS_HEIGHT,
             BAR_BACKGROUND
         )
-        if summary.total > 0 then
-            local fillWidth =
-                math.floor(progressWidth * math.min(1, summary.complete / summary.total))
-            if summary.complete > 0 then fillWidth = math.max(1, fillWidth) end
-            if fillWidth > 0 then
-                UI.Rectangle(control.root, progressX, progressY, fillWidth, PROGRESS_HEIGHT,
-                    summary.complete >= summary.total and GREEN or GOLD)
-            end
-        end
-        UI.Text(control.root, summaryText, 6, countY, cardWidth - 12, COUNT_HEIGHT, {
+        local fill = UI.Rectangle(control.root, progressX, progressY, 0, PROGRESS_HEIGHT, GOLD)
+        local label = UI.Text(control.root, summaryText, 6, countY, cardWidth - 12, COUNT_HEIGHT, {
             font = id.Font.MUSEO_SANS_11PT_REGULAR,
             colour = COUNT_TEXT,
             alignHorizontal = ui.AlignMode.CENTRE,
         })
+        self.progressCards[#self.progressCards + 1] = {
+            cape = cape, fill = fill, label = label, width = progressWidth,
+        }
         UI.Frame(control.root, 0, 0, cardWidth, cardHeight, { colour = CARD_BORDER })
+    end
+    self:RefreshProgress()
+end
+
+-- Repaint progress bars without recreating models or cape cards.
+function CapeOverview:RefreshProgress()
+    for _, card in ipairs(self.progressCards) do
+        local summary = summaryFor(self, card.cape)
+        card.label.content = summary.label or (summary.pending or 0) > 0 and "Loading..."
+            or summary.available and summary.total > 0 and tostring(summary.complete) .. " / " .. tostring(summary.total)
+            or "—"
+        local width = summary.total > 0 and math.floor(card.width * summary.complete / summary.total) or 0
+        if summary.complete > 0 then width = math.max(1, width) end
+        card.fill:SetSize(width, PROGRESS_HEIGHT)
+        card.fill.hidden = width == 0
+        card.fill.rgba = summary.complete >= summary.total and GREEN or GOLD
     end
 end
 

@@ -114,6 +114,7 @@ function BossPage:Build(parent)
     self.sidebarDivider = shell.sidebarDivider
     self.sidebarHeading = shell.sidebarTitle
     self.categorySearchField = prettyui.TextField.new(self.root, {
+        categoryID = "auto",
         x = 10,
         y = SUBLOG_NAV_HEIGHT + 34,
         width = SIDEBAR_WIDTH - 20,
@@ -135,6 +136,7 @@ function BossPage:ClearModeViewReferences()
     self.combatView = nil
     self.dropsView = nil
     self.trophiesView = nil
+    self.enchantmentsView = nil
     self.slayerView = nil
     self.abilitiesView = nil
 end
@@ -161,6 +163,7 @@ function BossPage:CreateModeView(modeID, page)
                 self:RebuildAchievements(false)
             end,
             onToggleTier = function(group) self:ToggleTier(group) end,
+            onVisibleAchievements = self.options.prioritizeAchievements,
         })
         return self.combatView
     elseif modeID == 2 then
@@ -170,7 +173,11 @@ function BossPage:CreateModeView(modeID, page)
             width = workspaceWidth,
             height = contentHeight,
             progress = self.progress,
+            objectCache = self.options.objectCache,
             tickSeconds = self.options.tickSeconds,
+            deferCollections = self.options.deferCollections,
+            isVisible = self.options.isVisible,
+            onPrepared = function() if ProgressStyle.greenLogEnabled then self:RebuildCategories(true) end end,
             showPersonalBests = self.state.showPersonalBests ~= false,
         })
         return self.dropsView
@@ -193,6 +200,13 @@ function BossPage:CreateModeView(modeID, page)
         return self.trophiesView
     end
 
+    if modeID == 7 then
+        local opts = self.options.enchantmentOptions
+        opts.x, opts.y, opts.width, opts.height = 0, 0, page.width, contentHeight
+        opts.selected, opts.search = self.state.selectedEnchantmentGroup, self.state.enchantmentSearch
+        self.enchantmentsView = CollectionLogPage.new(page, opts)
+        return self.enchantmentsView
+    end
     if modeID == 5 then
         local abilitiesOptions = self.options.abilitiesOptions
         abilitiesOptions.selected = self.state.selectedAbilityGroup
@@ -208,7 +222,13 @@ function BossPage:CreateModeView(modeID, page)
     slayerOptions.y = 0
     slayerOptions.width = self.root.width
     slayerOptions.height = contentHeight
-    self.slayerView = CollectionLogPage.new(page, slayerOptions)
+    slayerOptions.selected, slayerOptions.search = self.state.selectedSlayerGroup, self.state.slayerSearch
+    self.slayerView = require("Resources/Features/slayer/slayer_page").new(page, {
+        width = self.root.width, height = contentHeight,
+        dropOptions = slayerOptions, soulOptions = self.options.soulOptions, petOptions = self.options.petOptions,
+        state = self.state, saveState = function() self:SaveState() end,
+    })
+    self.state.selectedSlayerGroup = self.slayerView.selected
     return self.slayerView
 end
 
@@ -250,7 +270,6 @@ function BossPage:RebuildCategories(preserveScroll)
             and self.sidebarList ~= nil
             and self.sidebarList:GetScrollPosition()
         or 0
-    self:DestroySidebarContent()
 
     local listY = SUBLOG_NAV_HEIGHT + 72
     local listHeight = math.max(120, self.root.height - listY)
@@ -263,14 +282,20 @@ function BossPage:RebuildCategories(preserveScroll)
                 for _, group in ipairs(self.model:SelectedDropGroups({ selectedCategoryID = category.id })) do
                     total = total + #group.items
                     if not CollectionEntries.IsComplete(group.items, {
-                        getValue = function(name) return self.progress:GetValue(name) end,
+                        getValue = function(name)
+                            if self.options.deferCollections and self.state.selectedCategoryID == 0 then
+                                return self.progress:PeekValue(name)
+                            end
+                            return self.progress:GetValue(name)
+                        end,
+                        peekOnly = self.options.deferCollections and self.state.selectedCategoryID == 0,
                         isCollected = function(item, value) return self.progress:IsCollected(item, value) end,
                     }) then complete = false end
                 end
             else
                 local categoryID = self.model:PageCategoryID(category.id)
                 for _, achievement in ipairs(self.achievements) do
-                    if categoryID == Settings.ALL_CATEGORIES_ID or achievement.categoryID == categoryID then
+                    if self.model:MatchesCategory(achievement, categoryID) then
                         total = total + 1
                         if achievement.complete ~= true then complete = false end
                     end
@@ -280,6 +305,21 @@ function BossPage:RebuildCategories(preserveScroll)
         listEntries[#listEntries + 1] = { id = category.id, label = category.name,
             complete = total > 0 and complete }
     end
+    local existing = self.sidebarList and self.sidebarList.list.entries
+    local reuse = preserveScroll and existing and #existing == #listEntries
+    if reuse then
+        for index, entry in ipairs(listEntries) do
+            if existing[index].id ~= entry.id or existing[index].label ~= entry.label then reuse = false; break end
+        end
+    end
+    if reuse then
+        local completed = {}
+        for _, entry in ipairs(listEntries) do completed[entry.id] = entry.complete end
+        self.sidebarList:UpdateCompletions(function(key) return completed[key] end)
+        self.sidebarList:Select(self.state.selectedCategoryID)
+        return
+    end
+    self:DestroySidebarContent()
     self.sidebarList = SidebarList.new(self.root, {
         x = 0,
         y = listY,
@@ -343,15 +383,16 @@ end
 
 function BossPage:SetMode(modeID, force)
     modeID = tonumber(modeID)
-    if modeID ~= 1 and modeID ~= 2 and modeID ~= 3 and modeID ~= 4 and modeID ~= 5 then modeID = 1 end
+    if modeID ~= 1 and modeID ~= 2 and modeID ~= 3 and modeID ~= 4 and modeID ~= 5 and modeID ~= 7 then modeID = 1 end
     if not force and self.state.activeTab == modeID then return end
+    if self.options.prioritizeAchievements then self.options.prioritizeAchievements({}) end
     self.state.activeTab = modeID
 
     if modeID == 1 then
         local categoryExists = self.state.selectedCategoryID == Settings.ALL_CATEGORIES_ID
         local categoryID = self.model:PageCategoryID(self.state.selectedCategoryID)
         for _, achievement in ipairs(self.achievements) do
-            if achievement.categoryID == categoryID then
+            if self.model:MatchesCategory(achievement, categoryID) then
                 categoryExists = true
                 break
             end
@@ -404,6 +445,8 @@ function BossPage:RefreshAccountState()
         self.slayerView:RebuildGrid(true)
     elseif self:IsAbilitiesActive() and self.abilitiesView ~= nil then
         self.abilitiesView:RebuildGrid(true)
+    elseif self.enchantmentsView ~= nil then
+        self.enchantmentsView:RebuildGrid(true)
     end
 end
 
@@ -427,6 +470,7 @@ function BossPage:Destroy()
     self.activeView = nil
     self.dropsView = nil
     self.trophiesView = nil
+    self.enchantmentsView = nil
     self.slayerView = nil
     self.combatView = nil
     self.abilitiesView = nil

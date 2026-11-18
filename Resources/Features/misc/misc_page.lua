@@ -28,11 +28,22 @@ function MiscPage:SetMode(modeID, force)
     options.state.miscMode = mode.id
     self.pofView = nil
     self.activeView = select(1, self.tabHost:Activate(mode.id, true, function(_, page)
+        if mode.id == "totems" then
+            local opts = options.totemOptions
+            local selectedKey, searchKey = "selectedTotemGroup", "totemSearch"
+            opts.selected, opts.search = options.state[selectedKey], options.state[searchKey]
+            opts.x, opts.y, opts.width, opts.height = 0, 0, page.width, page.height
+            local view = CollectionLogPage.new(page, opts)
+            options.state[selectedKey] = view.selected
+            return view
+        end
         if mode.id == "thieving" then
             return require("Resources/Features/misc/thieving/thieving_page").new(page, {
                 width = page.width, height = page.height,
                 groups = options.thieving.groups,
                 progress = options.progress,
+                deferCollections = options.deferCollections,
+                isVisible = options.isVisible,
                 selected = options.state.selectedThievingGroup,
                 showPersonalBests = options.state.showPersonalBests,
                 onSelect = function(selected)

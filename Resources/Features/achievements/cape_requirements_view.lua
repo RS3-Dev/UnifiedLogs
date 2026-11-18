@@ -56,7 +56,7 @@ end
 
 local function hideSlot(slot)
     for key, component in pairs(slot) do
-        if key ~= "branches" and key ~= "row" then setVisible(component, false) end
+        if key ~= "branches" and key ~= "row" and key ~= "drawState" then setVisible(component, false) end
     end
     for _, component in ipairs(slot.branches) do
         setVisible(component, false)
@@ -205,6 +205,7 @@ function CapeRequirementsView:RenderRow(slot, row, rowIndex)
 
     local rightInset = 40
     local description = tostring(node.description or "")
+    if (node.runeScore or 0) > 0 then description = tostring(node.runeScore) .. " RuneScore  |  " .. description end
     local nameHeight = description ~= "" and 23 or ROW_HEIGHT
     UI.BindText(slot.name, node.name, labelX, y, width - labelX - rightInset, nameHeight, {
         font = id.Font.MUSEO_SANS_13PT_BOLD,
@@ -233,6 +234,7 @@ function CapeRequirementsView:RenderRow(slot, row, rowIndex)
         y + math.floor((ROW_HEIGHT - 14) / 2)
     )
     ProgressStyle.SetCompletionMark(slot.mark, complete)
+    if row.node.loaded == false then slot.mark.hidden = true end
     slot.mark:MoveToFront()
 end
 
@@ -248,7 +250,7 @@ function CapeRequirementsView:CloseGuide()
 end
 
 function CapeRequirementsView:OpenGuide(node)
-    local guide = CapeRequirements.Guide(node)
+    local guide = CapeRequirements.Guide(node, { defer = true })
     if guide == nil then return end
     if self.guidePanel ~= nil then self.guidePanel:Destroy() end
     self.selectedKey = node.key
@@ -262,12 +264,17 @@ function CapeRequirementsView:OpenGuide(node)
         width = panelWidth,
         height = self.scroll.height,
         onClose = function() self:CloseGuide() end,
+        isVisible = self.options.isVisible,
     })
     self:RefreshRows()
 end
 
 function CapeRequirementsView:ApplyFilters(preserveScroll)
     local source = CapeRequirements.Rows(self.data, self.orderView)
+    self.pending = false
+    for _, row in ipairs(source) do
+        if row.node.loaded == false then self.pending = true; break end
+    end
     self.rows = CapeRequirements.FilterRows(source, self.filterMode, self.search)
     self.filteredComplete = 0
     for _, row in ipairs(self.rows) do
@@ -287,6 +294,7 @@ function CapeRequirementsView:UpdateSummary()
     self.summaryText.content = tostring(self.filteredComplete or 0)
         .. " / "
         .. tostring(self.filteredTotal or 0)
+    if self.pending then self.summaryText.content = "Loading..." end
     self.summaryText.rgba = self.filteredTotal > 0
             and self.filteredComplete >= self.filteredTotal
             and ProgressStyle.PROGRESS_COMPLETE
@@ -312,12 +320,25 @@ function CapeRequirementsView:RefreshRows()
     while #self.rowPool < needed do
         self:CreateRowSlot()
     end
-    for _, slot in ipairs(self.rowPool) do
-        hideSlot(slot)
+    for index = needed + 1, #self.rowPool do
+        hideSlot(self.rowPool[index])
     end
     for poolIndex = 1, needed do
         local rowIndex = first + poolIndex - 1
-        self:RenderRow(self.rowPool[poolIndex], self.rows[rowIndex], rowIndex)
+        local slot, row = self.rowPool[poolIndex], self.rows[rowIndex]
+        local previous = slot.drawState or {}
+        if slot.row ~= row or previous.complete ~= row.node.complete or previous.loaded ~= row.node.loaded
+            or previous.width ~= self.rowWidth or previous.selected ~= self.selectedKey or previous.index ~= rowIndex then
+            hideSlot(slot)
+            self:RenderRow(slot, row, rowIndex)
+            slot.drawState = { complete = row.node.complete, loaded = row.node.loaded,
+                width = self.rowWidth, selected = self.selectedKey, index = rowIndex }
+        end
+    end
+    if self.options.snapshot and self.options.snapshot.deferred then
+        local visible = {}
+        for index = first, last do visible[#visible + 1] = self.rows[index].node end
+        self.options.snapshot.visible = visible
     end
 end
 
@@ -374,13 +395,15 @@ function CapeRequirementsView:Build()
     )
     self:UpdateSummary()
     local groupY = HEADER_HEIGHT
-    self:Remember(
+    local toolbarBackground = self:Remember(
         UI.Rectangle(self.root, 0, groupY, width, GROUP_HEIGHT, ProgressStyle.GROUP_BACKGROUND)
     )
+    toolbarBackground:MoveToBack()
     self:Remember(
         UI.Rectangle(self.root, 0, groupY + GROUP_HEIGHT - 1, width, 1, ProgressStyle.GROUP_DIVIDER)
     )
     self.searchField = self:Remember(prettyui.TextField.new(self.root, {
+        categoryID = "auto",
         x = 8,
         y = groupY + 2,
         width = width - 206,
@@ -401,6 +424,7 @@ function CapeRequirementsView:Build()
     }))
     local ComboBox = prettyui.OrderedComboBox or prettyui.ComboBox
     self.filterCombo = self:Remember(ComboBox.new(self.root, {
+        categoryID = "auto",
         x = width - 190,
         y = groupY + 2,
         width = 178,
@@ -418,6 +442,7 @@ function CapeRequirementsView:Build()
     local scrollY = groupY + GROUP_HEIGHT
     local scrollHeight = math.max(80, height - scrollY)
     self.scroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         x = 0,
         y = scrollY,
         width = width,

@@ -51,6 +51,7 @@ end
 
 function ScrollableItemList:_HideRowSlot(slot)
     slot.root.hidden = true
+    slot.boundRow = nil
     if slot.grid ~= nil then slot.grid:SetHidden(true) end
 end
 
@@ -61,6 +62,7 @@ function ScrollableItemList:_CreateGrid(slot)
         columns = self.columns,
         slotGap = self.slotGap,
         quantityMode = self.quantityMode,
+        _allocationFresh = true,
         _onScrollWheel = self.scroll._onScrollWheel,
         -- Use the scroll view's tooltip context instead of the short pooled row.
         _tooltipParent = self.scroll.content,
@@ -114,6 +116,7 @@ function ScrollableItemList:_RenderRow(slot, row)
         local label = row.showProgress ~= false
                 and (tostring(row.group.collected or 0) .. "/" .. tostring(row.group.total or 0))
             or (tostring(row.group.total or 0) .. " items")
+        if row.group.preparer and row.group.loadedCount < row.group.total then label = "Loading..." end
         local countRight = row.showProgress ~= false and 42 or 12
         UI.BindText(slot.count, label, width - 154, y, 142 - countRight + 12, row.height, {
             colour = ProgressStyle.Green(complete,
@@ -189,7 +192,8 @@ function ScrollableItemList:_BuildRows(groups)
         end
 
         local objects = group.objects or {}
-        if #objects == 0 then
+        local objectCount = group.preparer and #group.entries or #objects
+        if objectCount == 0 then
             rows[#rows + 1] = {
                 kind = "empty",
                 group = group,
@@ -201,31 +205,39 @@ function ScrollableItemList:_BuildRows(groups)
             }
             y = y + 40
         else
-            for first = 1, #objects, self.columns do
-                local last = math.min(first + self.columns - 1, #objects)
+            for first = 1, objectCount, self.columns do
+                local last = math.min(first + self.columns - 1, objectCount)
                 local rowObjects, rowStates = {}, {}
-                for index = first, last do
-                    rowObjects[#rowObjects + 1] = objects[index]
-                    local state = true
-                    if group.states ~= nil and group.states[index] ~= nil then
-                        -- Preserve explicit false values
-                        state = group.states[index]
+                if not group.preparer then
+                    for index = first, last do
+                        rowObjects[#rowObjects + 1] = objects[index]
+                        local state = true
+                        if group.states ~= nil and group.states[index] ~= nil then
+                            -- Preserve explicit false values
+                            state = group.states[index]
+                        end
+                        rowStates[#rowStates + 1] = state
                     end
-                    rowStates[#rowStates + 1] = state
                 end
-                local isLast = last == #objects
+                local isLast = last == objectCount
                 local height = SLOT_SIZE + BODY_TOP_PADDING + (isLast and BODY_BOTTOM_PADDING or 0)
                 rows[#rows + 1] = {
                     kind = "items",
                     group = group,
                     objects = rowObjects,
                     states = rowStates,
+                    first = first, last = last,
                     y = y,
                     gridY = y + BODY_TOP_PADDING,
                     height = height,
                     complete = complete,
                     showProgress = showProgress,
                 }
+                if group.preparer then
+                    local row = rows[#rows]
+                    row.revision = 0
+                    for index = first, last do group.jobs[index].row = row end
+                end
                 y = y + height
             end
         end
@@ -257,30 +269,74 @@ function ScrollableItemList:Refresh()
     local visibleTop = math.max(0, self.scroll.scrollY - overscan)
     local visibleBottom = self.scroll.scrollY + self.scroll.height + overscan
     local visible = {}
-    for _, row in ipairs(self.rows) do
-        if row.y < visibleBottom and row.y + row.height > visibleTop then
-            visible[#visible + 1] = row
-        end
+    -- Find the viewport without visiting every logical row on each wheel event.
+    local low, high = 1, #self.rows
+    while low <= high do
+        local middle = math.floor((low + high) / 2)
+        local row = self.rows[middle]
+        if row.y + row.height <= visibleTop then low = middle + 1 else high = middle - 1 end
     end
+    for index = low, #self.rows do
+        local row = self.rows[index]
+        if row.y >= visibleBottom then break end
+        visible[#visible + 1] = row
+    end
+    if self.preparer then self.preparer:SetVisibleRows(visible) end
 
+    if #self.rowPool < #visible then UI.RefreshComponentIDs(self.scroll.content) end
     while #self.rowPool < #visible do
         self:_CreateRowSlot()
     end
+    -- Keep overlapping rows in their existing slots as the viewport advances.
+    local wanted, assigned, spare, ordered = {}, {}, {}, {}
+    for _, row in ipairs(visible) do wanted[row] = true end
     for _, slot in ipairs(self.rowPool) do
-        self:_HideRowSlot(slot)
+        if slot.boundRow ~= nil and wanted[slot.boundRow] then
+            assigned[slot.boundRow] = slot
+        else
+            spare[#spare + 1] = slot
+        end
     end
 
     for index, row in ipairs(visible) do
-        local slot = self.rowPool[index]
-        self:_RenderRow(slot, row)
-        if row.kind == "items" then
-            local grid = slot.grid or self:_CreateGrid(slot)
-            grid:SetPos(self.itemInset, row.gridY - row.y)
-            grid:SetEntries(row.objects, row.states)
-            grid:SetHidden(false)
-            grid.root:MoveToFront()
+        local slot = assigned[row] or table.remove(spare)
+        ordered[index] = slot
+        local revision = row.kind == "items" and row.group.preparer and row.revision or row.group.revision
+        local complete = row.group.preparer and row.group.total > 0 and row.group.loadedCount == row.group.total
+            and row.group.collected == row.group.total
+        if slot.boundRow ~= row or slot.boundRevision ~= revision
+            or row.group.preparer and slot.boundComplete ~= complete then
+            if row.group.preparer then
+                row.complete = row.group.total > 0 and row.group.loadedCount == row.group.total
+                    and row.group.collected == row.group.total
+                if row.kind == "items" then
+                    row.objects, row.states = {}, {}
+                    row.hasPrepared = false
+                    for item = row.first, row.last do
+                        if row.group.objects[item] ~= nil then row.hasPrepared = true end
+                        row.objects[#row.objects + 1] = row.group.objects[item] or { placeholder = true }
+                        row.states[#row.states + 1] = row.group.states[item] ~= false
+                    end
+                end
+            end
+            if slot.grid ~= nil then slot.grid:SetHidden(true) end
+            self:_RenderRow(slot, row)
+            if row.kind == "items" and (not row.group.preparer or row.hasPrepared) then
+                local grid = slot.grid or self:_CreateGrid(slot)
+                grid:SetPos(self.itemInset, row.gridY - row.y)
+                grid:SetEntries(row.objects, row.states)
+                grid:SetHidden(false)
+                grid.root:MoveToFront()
+            end
+            slot.boundRow = row
+            slot.boundRevision, slot.boundComplete = revision, complete
         end
     end
+    for _, slot in ipairs(spare) do
+        self:_HideRowSlot(slot)
+        ordered[#ordered + 1] = slot
+    end
+    self.rowPool = ordered
 end
 
 function ScrollableItemList.new(scroll, options)
@@ -305,7 +361,7 @@ function ScrollableItemList.new(scroll, options)
         rowPool = {},
         contentHeight = 0,
     }, ScrollableItemList)
-    self.layoutHandler = function() self:Refresh() end
+    self.layoutHandler = function() if not self.updating then self:Refresh() end end
     self.scroll.onLayout = self.layoutHandler
     return self
 end
@@ -315,9 +371,12 @@ function ScrollableItemList:Update(groups, options)
     options = options or {}
     local previousY = options.preserveScroll and self.scroll.scrollY or 0
     self.startY = options.startY or self.startY or 0
+    self.preparer = groups[1] and groups[1].preparer
     self:_BuildRows(groups or {})
+    self.updating = true
     self.scroll:SetContentHeight(math.max(self.scroll.height, self.contentHeight))
     self.scroll:SetScrollPosition(previousY)
+    self.updating = false
     self:Refresh()
     return self.contentHeight
 end

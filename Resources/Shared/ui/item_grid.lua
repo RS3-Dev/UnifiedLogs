@@ -33,6 +33,7 @@ end
 
 function ItemGrid.new(parent, entries, options)
     options = options or {}
+    if not options._allocationFresh then UI.RefreshComponentIDs(parent) end
     local self = setmetatable({}, ItemGrid)
     self.capacity = math.max(1, math.floor(options.columns or #(entries or {})))
     self.slotGap = math.max(0, math.floor(options.slotGap or 2))
@@ -138,10 +139,13 @@ function ItemGrid:SetEntries(entries, states)
         end
         slot.object = objectIDValue ~= nil and object or nil
         slot.tooltip = type(entry) == "table" and entry.tooltip or nil
+        if type(slot.tooltip) == "string" then
+            slot.tooltip = slot.tooltip:gsub("\r\n", "<br>"):gsub("[\r\n]", "<br>")
+        end
         local placeholder = type(entry) == "table" and entry.placeholder == true
         slot.root.hidden = objectIDValue == nil and slot.spriteID == nil and not placeholder
         if objectIDValue ~= nil then
-            slot.item:SetAssociatedObject(objectIDValue)
+            if slot.objectID ~= objectIDValue then slot.item:SetAssociatedObject(objectIDValue) end
             slot.item.hidden = false
             local quantity = type(entry) == "table" and entry.quantity or nil
             if quantity ~= nil then
@@ -155,6 +159,7 @@ function ItemGrid:SetEntries(entries, states)
             slot.item.hidden = true
             slot.item.associatedObjectQuantityMode = NEVER
         end
+        slot.objectID = objectIDValue
         setDisabled(slot, states ~= nil and states[index] == false)
     end
 end

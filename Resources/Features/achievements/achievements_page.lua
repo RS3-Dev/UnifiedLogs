@@ -1,6 +1,6 @@
 -- Render the achievements page
 local UI = require("Resources/Shared/ui/components")
-local LazyTabs = require("Resources/Shared/ui/lazy_tabs")
+local LazyTabs = require("Resources/Shared/ui/sidebar_pages")
 local CapeOverview = require("Resources/Features/achievements/cape_overview")
 local CapeRequirements = require("Resources/Features/achievements/cape_requirements")
 local CapeRequirementsView = require("Resources/Features/achievements/cape_requirements_view")
@@ -14,7 +14,7 @@ function AchievementsPage.new(parent, options)
     self.section = options.section
     self.state = options.state
     self.activeView = nil
-    self.snapshot = CapeRequirements.NewSnapshot()
+    self.snapshot = self:NewSnapshot()
     self.searchDirty = false
     self.root = UI.ContentLayer(parent)
     self.root:SetPos(options.x or 0, options.y or 0)
@@ -24,17 +24,34 @@ function AchievementsPage.new(parent, options)
     self.isBuilding = true
     self.tabHost = LazyTabs.new(
         self.root,
-        self.section.modes,
+        (self.section.capeModes or self.section.modes),
         self.state.achievementMode,
         function(_, _, modeID)
             if self.isBuilding then return end
             self:SetMode(modeID, false)
         end
     )
+    self.tabHost.shell.sidebarTitle.content = "CAPES"
     self.tabs = self.tabHost.tabs
     self.isBuilding = false
     self:SetMode(self.state.achievementMode, true)
     return self
+end
+
+-- Update cached progress in small batches without rebuilding the native page.
+function AchievementsPage:NewSnapshot()
+    return CapeRequirements.NewSnapshot({
+        achievementOnly = true,
+        isVisible = self.options.isVisible,
+        onChanged = function()
+            if self.activeView == nil then return end
+            if self.state.achievementMode == "overview" then
+                self.activeView:RefreshProgress()
+            else
+                self.activeView:ApplyFilters(true)
+            end
+        end,
+    })
 end
 
 -- Save search
@@ -45,12 +62,13 @@ function AchievementsPage:PersistSearch()
 end
 
 function AchievementsPage:SetMode(modeID, force)
-    local mode = self.tabHost:Mode(modeID) or self.section.modes[1]
+    local mode = self.tabHost:Mode(modeID) or (self.section.capeModes or self.section.modes)[1]
     if mode == nil or not force and self.state.achievementMode == mode.id then return end
 
     -- Save pending search text with the selected mode
     self.searchDirty = false
     self.state.achievementMode = mode.id
+    self.snapshot.visible = {}
     self.activeView = select(1, self.tabHost:Activate(mode.id, true, function(_, page)
         if mode.id == "overview" then
             return CapeOverview.new(page, {
@@ -65,6 +83,7 @@ function AchievementsPage:SetMode(modeID, force)
             width = page.width,
             height = page.height,
             cape = mode.cape,
+            isVisible = self.options.isVisible,
             snapshot = self.snapshot,
             orderView = self.state.achievementOrderView,
             filterMode = self.state.achievementRequirementFilter,
@@ -102,11 +121,13 @@ function AchievementsPage:SetOrderView(value)
 end
 
 function AchievementsPage:RefreshAccountState()
-    self.snapshot = CapeRequirements.NewSnapshot()
+    if self.snapshot.Stop then self.snapshot:Stop() end
+    self.snapshot = self:NewSnapshot()
     self:SetMode(self.state.achievementMode, true)
 end
 
 function AchievementsPage:Destroy()
+    if self.snapshot.Stop then self.snapshot:Stop() end
     self:PersistSearch()
     if self.tabHost ~= nil then self.tabHost:Destroy() end
     if self.root ~= nil then self.root:Destroy() end

@@ -47,6 +47,13 @@ local function defaults()
         timeFormat = "12",
         selectedSlayerGroup = "Asgarnia & Misthalin",
         slayerSearch = "",
+        slayerMode = "drops",
+        selectedSoulGroup = "Souls",
+        soulSearch = "",
+        selectedTotemGroup = "All",
+        totemSearch = "",
+        selectedMenaphosGroup = "All",
+        menaphosSearch = "",
         selectedAbilityGroup = "All",
         abilitySearch = "",
         selectedClueGroup = "General clue rewards",
@@ -76,6 +83,7 @@ local function defaults()
         questOrderView = "linear",
         questRequirementFilter = "all",
         achievementMode = "overview",
+        skillingMode = "xp",
         achievementOrderView = "linear",
         achievementRequirementFilter = "all",
         achievementRequirementSearch = "",
@@ -149,6 +157,8 @@ function Settings.Load(registry)
         "search",
         "categorySearch",
         "selectedSlayerGroup",
+        "selectedSoulGroup", "soulSearch", "selectedTotemGroup", "totemSearch",
+        "selectedMenaphosGroup", "menaphosSearch",
         "slayerSearch",
         "selectedAbilityGroup",
         "abilitySearch",
@@ -180,8 +190,12 @@ function Settings.Load(registry)
     local selectedQuestID = tonumber(saved.selectedQuestID)
     if saved.miscMode == "thieving" or saved.miscMode == "pof" or saved.miscMode == "minigames"
         or saved.miscMode == "pets" or saved.miscMode == "enchantments"
-        or saved.miscMode == "skilling_outfits" then
+        or saved.miscMode == "skilling_outfits" or saved.miscMode == "totems" then
         state.miscMode = saved.miscMode
+    end
+    if saved.miscMode == "menaphos" then
+        state.miscMode, state.selectedMinigameGroup = "minigames", "Menaphos"
+        state.minigameSearch = type(saved.menaphosSearch) == "string" and saved.menaphosSearch or ""
     end
     if selectedQuestID ~= nil then state.selectedQuestID = selectedQuestID end
     if saved.questStatusFilter == "all" or saved.questStatusFilter == "completed"
@@ -271,8 +285,12 @@ function Settings.Load(registry)
     local categoryID = tonumber(saved.selectedCategoryID)
     if categoryID ~= nil then state.selectedCategoryID = categoryID end
     local activeTab = tonumber(saved.activeTab)
-    if activeTab == 1 or activeTab == 2 or activeTab == 3 or activeTab == 4 or activeTab == 5 then
+    if activeTab == 1 or activeTab == 2 or activeTab == 3 or activeTab == 4 or activeTab == 5 or activeTab == 7 then
         state.activeTab = activeTab
+    end
+    if activeTab == 6 or activeTab == 4 and saved.slayerMode == "souls" then
+        state.activeTab, state.selectedSlayerGroup = 4, "Souls"
+        state.slayerSearch = type(saved.soulSearch) == "string" and saved.soulSearch or ""
     end
     if saved.xpMode == "notice" or saved.xpMode == "overall" or saved.xpMode == "skills"
         or saved.xpMode == "danger" then
@@ -288,10 +306,20 @@ function Settings.Load(registry)
     copyBoundedNumber(state, saved, "xpEndDay", 1, 31)
     copyBoundedNumber(state, saved, "xpSkillID", 0, 28)
 
+    for _, key in ipairs({ "achievementTab", "skillingMode", "areaTaskArea", "areaTaskFilter", "areaTaskSearch" }) do
+        if type(saved[key]) == "string" then state[key] = saved[key] end
+    end
     local activeSection = validActiveSection(registry, saved.activeSection)
     if activeSection ~= nil then state.activeSection = activeSection end
-    if state.activeSection == "xp" and not state.enableXPLogs then
-        state.activeSection = "bosses"
+    if saved.activeSection == "quests" then
+        state.activeSection, state.achievementTab = "achievements", "quests"
+    elseif saved.activeSection == "misc" then
+        if saved.miscMode == "minigames" or saved.miscMode == "menaphos" then state.activeSection = "minigames"
+        elseif saved.miscMode == "thieving" then state.activeSection, state.skillingMode = "xp", "thieving"
+        elseif saved.miscMode == "pets" then
+            if saved.selectedPetGroup == "Revenant Pets" then state.activeSection, state.activeTab, state.selectedSlayerGroup = "bosses", 4, "Revenant Pets"
+            else state.activeSection, state.skillingMode = "xp", "pets" end
+        elseif saved.miscMode == "enchantments" then state.activeSection, state.activeTab = "bosses", 7 end
     end
     if type(saved.collapsedTiers) == "table" then state.collapsedTiers = saved.collapsedTiers end
     return state
@@ -330,6 +358,10 @@ function Settings.Save(state)
         timeFormat = state.timeFormat,
         selectedSlayerGroup = state.selectedSlayerGroup,
         slayerSearch = state.slayerSearch,
+        slayerMode = state.slayerMode,
+        selectedSoulGroup = state.selectedSoulGroup, soulSearch = state.soulSearch,
+        selectedTotemGroup = state.selectedTotemGroup, totemSearch = state.totemSearch,
+        selectedMenaphosGroup = state.selectedMenaphosGroup, menaphosSearch = state.menaphosSearch,
         selectedAbilityGroup = state.selectedAbilityGroup,
         abilitySearch = state.abilitySearch,
         selectedClueGroup = state.selectedClueGroup,
@@ -359,6 +391,11 @@ function Settings.Save(state)
         questOrderView = state.questOrderView,
         questRequirementFilter = state.questRequirementFilter,
         achievementMode = state.achievementMode,
+        achievementTab = state.achievementTab,
+        skillingMode = state.skillingMode,
+        areaTaskArea = state.areaTaskArea,
+        areaTaskFilter = state.areaTaskFilter,
+        areaTaskSearch = state.areaTaskSearch,
         achievementOrderView = state.achievementOrderView,
         achievementRequirementFilter = state.achievementRequirementFilter,
         achievementRequirementSearch = state.achievementRequirementSearch,

@@ -248,6 +248,7 @@ function TrophyTab:BuildShell()
             value = "autoRotate",
         },
     }, {
+        categoryID = "auto",
         x = self.previewX + 10,
         y = self.bodyY + self.bodyHeight - 26,
         width = 140,
@@ -331,6 +332,7 @@ function TrophyTab:BuildContent()
     if self.contentRoot ~= nil then return end
 
     self.catalogueScroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         x = self.catalogueX + 1, y = self.bodyY + 1,
         width = self.catalogueWidth - 2, height = math.max(48, self.bodyHeight - MANUAL_NOTICE_HEIGHT - 1),
         contentHeight = 48, scrollStep = SLOT_SIZE + SLOT_GAP,
@@ -346,7 +348,7 @@ function TrophyTab:BuildContent()
     local bodyHeight = math.max(self.catalogueScroll.height, gridHeight + 12)
     self.catalogueScroll:SetContentHeight(bodyHeight)
 
-    UI.Rectangle(self.contentRoot, 0, 0, rowWidth, bodyHeight, ProgressStyle.ROW_ODD)
+    UI.Rectangle(self.contentRoot, 0, 0, rowWidth, bodyHeight, ProgressStyle.ROW_ODD):MoveToBack()
 
     for first = 1, #self.entries, columns do
         local last = math.min(first + columns - 1, #self.entries)

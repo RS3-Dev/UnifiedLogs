@@ -96,6 +96,7 @@ function QuestPage.new(parent, options)
 
     local searchWidth = SIDEBAR_WIDTH - 20 - FILTER_BUTTON_SIZE - FILTER_GAP
     self.searchField = prettyui.TextField.new(self.root, {
+        categoryID = "auto",
         x = 10,
         y = 3,
         width = searchWidth,
@@ -116,6 +117,7 @@ function QuestPage.new(parent, options)
         self.filterSheet.hidden = not self.filterOpen
         if self.filterOpen then self.filterSheet:MoveToFront() end
     end, {
+        categoryID = "auto",
         x = 10 + searchWidth + FILTER_GAP,
         y = 5,
         size = FILTER_BUTTON_SIZE,
@@ -127,8 +129,8 @@ function QuestPage.new(parent, options)
     self.filterSheet:SetPos(SIDEBAR_WIDTH - FILTER_SHEET_WIDTH - 10, LIST_TOP)
     self.filterSheet:SetSize(FILTER_SHEET_WIDTH, FILTER_SHEET_HEIGHT)
     self.filterSheet.clickthrough = false
-    UI.Rectangle(self.filterSheet, 0, 0, FILTER_SHEET_WIDTH, FILTER_SHEET_HEIGHT, 0x8B6F42FF)
-    UI.Rectangle(
+    self.filterBorder = UI.Rectangle(self.filterSheet, 0, 0, FILTER_SHEET_WIDTH, FILTER_SHEET_HEIGHT, 0x8B6F42FF)
+    self.filterBackground = UI.Rectangle(
         self.filterSheet,
         1,
         1,
@@ -136,8 +138,11 @@ function QuestPage.new(parent, options)
         FILTER_SHEET_HEIGHT - 2,
         0x211B14FF
     )
+    self.filterBackground:MoveToBack()
+    self.filterBorder:MoveToBack()
     local StatusCombo = prettyui.OrderedComboBox or prettyui.ComboBox
     self.statusCombo = StatusCombo.new(self.filterSheet, {
+        categoryID = "auto",
         x = 8, y = 80, width = FILTER_SHEET_WIDTH - 16, height = 28,
         entries = {
             { id = 1, label = "Show all" },
@@ -154,33 +159,13 @@ function QuestPage.new(parent, options)
             self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
         end,
     })
-    local selectedTypes = {}
-    if self.showMiniquests then selectedTypes[#selectedTypes + 1] = "miniquests" end
-    if self.showSeasonalQuests then selectedTypes[#selectedTypes + 1] = "seasonal" end
-    if self.availableInQH then selectedTypes[#selectedTypes + 1] = "questhelper" end
-    self.typeChoices = prettyui.CheckboxButton.new(self.filterSheet, {
-        { text = "Show mini quests", value = "miniquests" },
-        { text = "Show seasonal quests", value = "seasonal" },
-        { text = "Available in QH", value = "questhelper" },
-    }, {
-        x = 8,
-        y = 120,
-        width = FILTER_SHEET_WIDTH - 16,
-        selectedValues = selectedTypes,
-        selectionCursor = false,
-        onChange = function(control)
-            self.showMiniquests = control:IsSelected("miniquests")
-            self.showSeasonalQuests = control:IsSelected("seasonal")
-            self.availableInQH = control:IsSelected("questhelper")
-            self:RebuildList(true)
-            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
-        end,
-    })
+    self:RefreshTypeChoices()
     self.requirementsChoice = prettyui.CheckboxButton.new(self.filterSheet, {
         { text = "Requirements met", value = "met",
             tooltip = "Require skill levels throughout the prerequisite chain and completion of all prerequisite quests." },
     }, {
-        x = 8, y = 208, width = FILTER_SHEET_WIDTH - 16,
+        categoryID = "auto",
+        x = 8, y = 0, width = FILTER_SHEET_WIDTH - 16,
         selectedValues = self.requirementsMet and { "met" } or {},
         selectionCursor = false,
         onChange = function(control)
@@ -191,6 +176,7 @@ function QuestPage.new(parent, options)
             end
         end,
     })
+    self:LayoutFilterChoices()
     text(self.filterSheet, "STATUS", 8, 60, FILTER_SHEET_WIDTH - 16, 18, {
         font = id.Font.MUSEO_SANS_11PT_REGULAR,
         colour = 0xF2C66DFF,
@@ -200,6 +186,7 @@ function QuestPage.new(parent, options)
         colour = 0xF2C66DFF,
     })
     self.sortCombo = prettyui.ComboBox.new(self.filterSheet, {
+        categoryID = "auto",
         x = 8,
         y = 26,
         width = FILTER_SHEET_WIDTH - 16,
@@ -253,7 +240,52 @@ function QuestPage.new(parent, options)
     return self
 end
 
+-- Keep optional filters and their spacing in sync with the loaded dependency.
+function QuestPage:RefreshTypeChoices()
+    local available = not self.questHelperDisabled and QuestHelper.IsAvailable()
+    if self.typeChoices ~= nil and self.showQuestHelperFilter == available then return end
+    self.showQuestHelperFilter = available
+    if self.typeChoices ~= nil then self.typeChoices:Destroy() end
+    local selectedTypes = {}
+    if self.showMiniquests then selectedTypes[#selectedTypes + 1] = "miniquests" end
+    if self.showSeasonalQuests then selectedTypes[#selectedTypes + 1] = "seasonal" end
+    if self.availableInQH then selectedTypes[#selectedTypes + 1] = "questhelper" end
+    local choices = {
+        { text = "Show mini quests", value = "miniquests" },
+        { text = "Show seasonal quests", value = "seasonal" },
+    }
+    if available then choices[#choices + 1] = { text = "Available in QH", value = "questhelper" } end
+    self.typeChoices = prettyui.CheckboxButton.new(self.filterSheet, choices, {
+        categoryID = "auto",
+        x = 8,
+        y = 120,
+        width = FILTER_SHEET_WIDTH - 16,
+        selectedValues = selectedTypes,
+        selectionCursor = false,
+        onChange = function(control)
+            self.showMiniquests = control:IsSelected("miniquests")
+            self.showSeasonalQuests = control:IsSelected("seasonal")
+            if self.showQuestHelperFilter then self.availableInQH = control:IsSelected("questhelper") end
+            self:RebuildList(true)
+            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
+        end,
+    })
+    self:LayoutFilterChoices()
+end
+
+-- Place Requirements met immediately after the visible quest-type choices.
+function QuestPage:LayoutFilterChoices()
+    if self.requirementsChoice == nil then return end
+    local y = self.typeChoices.root.y + self.typeChoices.root.height
+    self.requirementsChoice.root:SetPos(8, y)
+    local height = y + self.requirementsChoice.root.height + 10
+    self.filterSheet:SetSize(FILTER_SHEET_WIDTH, height)
+    self.filterBorder:SetSize(FILTER_SHEET_WIDTH, height)
+    self.filterBackground:SetSize(FILTER_SHEET_WIDTH - 2, height - 2)
+end
+
 function QuestPage:RebuildList(preserveScroll, revealSelected)
+    self:RefreshTypeChoices()
     self.helperQuests = not self.questHelperDisabled and QuestHelper.AvailableQuests() or {}
     local previousY = preserveScroll
             and self.sidebarList ~= nil
@@ -287,7 +319,8 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
             or self.statusFilter == "incomplete" and status ~= "complete"
         local typeMatches = (self.showMiniquests or not quest.isMiniquest)
             and (self.showSeasonalQuests or not quest.isSeasonalQuest)
-        local helperMatches = not self.availableInQH or self.helperQuests[quest.id] ~= nil
+        local helperMatches = not self.availableInQH or not self.showQuestHelperFilter
+            or self.helperQuests[quest.id] ~= nil
         if searchMatches and statusMatches and typeMatches and helperMatches
             and (not self.requirementsMet
                 or QuestRequirements.RequirementsMet(quest, self.byID, requirementOptions)) then
@@ -313,6 +346,7 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
             label = entry.quest.name,
             complete = entry.status == "complete",
             textColour = QUEST_STATUS_COLOURS[entry.status],
+            trailingIcon = self.helperQuests[entry.quest.id] and QUEST_SPRITE or nil,
         }
     end
     self.sidebarList = SidebarList.new(self.root, {
@@ -325,17 +359,6 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
         scrollY = previousY,
         onSelect = function(questID) self:SelectQuest(questID, "reset") end,
     })
-    -- Reserve the end of supported rows for a small quest icon.
-    for _, row in ipairs(self.sidebarList.list.rows or {}) do
-        if self.helperQuests[row.entry.id] ~= nil then
-            local sprite = UI.NewComponent(ui.Sprite, row.root)
-            sprite:SetPos(row.root.width - 23, 8)
-            sprite:SetSize(16, 16)
-            sprite.spriteID = QUEST_SPRITE
-            sprite.clickthrough = true
-            if row.label ~= nil then row.label:SetSize(-29 - row.label.x, 32, 1, 0) end
-        end
-    end
     if #visible == 0 then
         self.emptySidebarText = text(
             self.root,

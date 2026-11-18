@@ -8,6 +8,7 @@ local Feature = {
         { id = 3, label = "POH" },
         { id = 4, label = "Slayer" },
         { id = 5, label = "Abilities" },
+        { id = 7, label = "Enchantments" },
     },
 }
 
@@ -27,7 +28,7 @@ Feature.providers = {
         logs = { Trophies = {} },
     },
 }
-Feature.dependencies = { "slayer", "abilities" }
+Feature.dependencies = { "slayer", "slayer_souls", "abilities", "pets", "enchantments" }
 
 -- Copy bundled entries, then let patched ones replace them
 local function withPatch(bundled, patched)
@@ -79,7 +80,7 @@ function Feature.LoadData(registry, yieldWork)
     require("Resources/Features/bosses/boss_categories").Extend(patch.aliases, patch.dropOnly)
     registry.byID.poh.logs.Trophies = require("Resources/Features/bosses/trophies/data/trophy_catalog")
     local ok, achievements =
-        pcall(require("Resources/Features/bosses/data/combat_achievement_catalog").Build, yieldWork)
+        pcall(require("Resources/Features/bosses/data/combat_achievement_catalog").Build, yieldWork, { deferState = true })
     if ok then
         local destination = registry.byID.combat_achievements.records
         for i = #destination, 1, -1 do
@@ -99,6 +100,7 @@ end
 function Feature.CreatePage(parent, context)
     local registry = context.registry
     local drops = registry.byID.boss_drops
+    drops.objectCache = drops.objectCache or setmetatable({}, { __mode = "k" })
     return require("Resources/Features/bosses/boss_page").new(parent, {
         x = context.x,
         y = context.y,
@@ -109,6 +111,7 @@ function Feature.CreatePage(parent, context)
         section = Feature,
         achievements = registry.byID.combat_achievements.records,
         dropLogs = drops.dropLogs,
+        objectCache = drops.objectCache,
         bossRecords = drops.records,
         bossKillCounts = drops.killCounts,
         tickSeconds = drops.tickSeconds,
@@ -123,10 +126,17 @@ function Feature.CreatePage(parent, context)
             registry.byID.abilities,
             context
         ),
+        soulOptions = require("Resources/Shared/collections/collection_log_page").Options(
+            registry.byID.slayer_souls, context
+        ),
+        petOptions = require("Resources/Shared/collections/collection_log_page").Options(registry.byID.pets, context),
+        enchantmentOptions = require("Resources/Shared/collections/collection_log_page").Options(registry.byID.enchantments, context),
         progress = context.progress,
+        deferCollections = context.deferCollections,
         state = context.state,
         saveState = context.saveState,
         refreshProgress = context.refreshProgress,
+        prioritizeAchievements = context.prioritizeAchievements,
     })
 end
 

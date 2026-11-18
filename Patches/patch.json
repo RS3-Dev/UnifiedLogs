@@ -1,8 +1,9 @@
 {
   "format": 1,
   "version": "1.2.0",
-  "revision": 1,
+  "revision": 2,
   "trackingNameRenames": {
-    "ITEMLOG_ITEM_VISAGE": "ITEMLOG_ITEM_VISAGE"
+    "ITEMLOG_ITEM_VISAGE": "ITEMLOG_ITEM_VISAGE",
+    "LORE_OWNS_TZREK_JAD": "LORE_JAD_PET_UNLOCKED"
   }
 }
