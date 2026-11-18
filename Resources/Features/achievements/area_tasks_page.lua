@@ -2,9 +2,7 @@
 local UI = require("Resources/Shared/ui/components")
 local ClientConfig = require("Resources/Shared/client_config")
 local Read = ClientConfig.Read
-local Sidebar = require("Resources/Shared/ui/sidebar_pages")
-local Requirements = require("Resources/Features/achievements/cape_requirements")
-local View = require("Resources/Features/achievements/cape_requirements_view")
+local Browser = require("Resources/Features/achievements/achievements_page")
 local discoveryCache = setmetatable({}, { __mode = "k" })
 local Page = {}
 Page.__index = Page
@@ -102,57 +100,32 @@ function Page:Build()
     self.loading:Destroy()
     self.loading = nil
     local modes = {}
-    for area in pairs(self.groups) do modes[#modes + 1] = { id = area, label = area } end
+    for area, sets in pairs(self.groups) do
+        local entries = {}
+        for _, set in ipairs(sets) do
+            local requirements = Read(set.achievement, "requirements")
+            for _, reference in ipairs(Read(requirements, "achievements") or {}) do entries[#entries + 1] = reference end
+        end
+        modes[#modes + 1] = { id = area, label = area,
+            cape = { name = area .. " Area Tasks", achievement = { configName = area }, entries = entries } }
+    end
     table.sort(modes, function(a, b) return a.label < b.label end)
     if #modes == 0 then
         UI.Text(self.root, "Unable to resolve the area task index. Reload Unified Logs to retry.", 12, 12, self.root.width - 24, 30)
         return
     end
-    self.host = Sidebar.new(self.root, modes, self.context.state.areaTaskArea,
-        function(_, _, value) self:SetArea(value) end)
-    self.host.shell.sidebarTitle.content = "AREAS"
-    self:SetArea(self.context.state.areaTaskArea or modes[1].id)
+    self.browser = Browser.new(self.root, {
+        width = self.root.width, height = self.root.height, section = { modes = modes },
+        state = self.context.state, saveState = self.context.saveState, isVisible = self.context.isVisible,
+        stateKeys = { mode = "areaTaskArea", search = "areaTaskSearch", filter = "areaTaskFilter" },
+        sidebarTitle = "AREAS", orderView = "linear",
+    })
 end
-function Page:SetArea(value)
-    if self.snapshot then self.snapshot:Stop() end
-    local context = self.context
-    self.snapshot = Requirements.NewSnapshot({ achievementOnly = true, isVisible = context.isVisible,
-        onChanged = function() if self.view then self.view:ApplyFilters(true) end end })
-    self.view = self.host:Activate(value, true, function(mode, mount)
-        context.state.areaTaskArea = mode.id
-        local tests = {}
-        local order = { Beginner = 1, Easy = 2, Medium = 3, Hard = 4, Elite = 5 }
-        table.sort(self.groups[mode.id], function(a, b) return (order[a.difficulty] or 9) < (order[b.difficulty] or 9) end)
-        local seen = {}
-        for _, item in ipairs(self.groups[mode.id]) do
-            local requirements = Read(item.achievement, "requirements")
-            for _, test in ipairs(Read(requirements, "achievements") or {}) do
-                local achievement = Read(test, "achievement") or test
-                local key = Read(achievement, "id") or Read(achievement, "configName") or achievement
-                if not seen[key] then
-                    seen[key] = true
-                    tests[#tests + 1] = { achievement = achievement }
-                end
-            end
-        end
-        local source = { name = "Area Tasks: " .. mode.id, configName = "unifiedlogs_area_" .. mode.id,
-            requirements = { achievements = tests }, progress = 0 }
-        return View.new(mount, { width = mount.width, height = mount.height,
-            cape = { name = mode.id .. " Area Tasks", achievement = source }, snapshot = self.snapshot,
-            orderView = "linear", filterMode = context.state.areaTaskFilter, search = context.state.areaTaskSearch,
-            isVisible = context.isVisible,
-            onFilterChange = function(v) context.state.areaTaskFilter = v; context.saveState() end,
-            onSearchChange = function(v, persist) context.state.areaTaskSearch = v; if persist then context.saveState() end end,
-        })
-    end)
-    context.saveState()
-end
-function Page:RefreshAccountState() if self.host then self:SetArea(self.context.state.areaTaskArea) end end
+function Page:RefreshAccountState() if self.browser then self.browser:RefreshAccountState() end end
 function Page:Destroy()
     self.stopped = true
     if self.event then Event.Logic.Unsubscribe(self.event) end
-    if self.snapshot then self.snapshot:Stop() end
-    if self.host then self.host:Destroy() end
+    if self.browser then self.browser:Destroy() end
     self.root:Destroy()
 end
 return Page

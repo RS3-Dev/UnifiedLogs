@@ -395,33 +395,16 @@ function BossDropsTab:RebuildDeferred(groups, preserveScroll)
         })
     end
     self.objectCache = self.options.objectCache or self.objectCache or {}
-    self.preparer = Preparer.new({
-        stateOnly = true, visibleBudget = 32,
-        cachedObject = function(entry) return self.objectCache[entry] end,
-        isCached = function(entry)
-            return self.progress.resolved[entry.v]
-                and (not entry.storedVariable or self.progress.resolved[entry.storedVariable])
-        end,
-        getValue = function(name) return self.progress:ReadValueNow(name) end,
-        isCollected = function(entry, value) return self.progress:IsCollected(entry, value) end,
-        resolveObject = function(name, entry, index)
-            local object = self.objectCache[entry]
-            if object == nil then
-                object = GameData.CollectionObject(name, entry, index)
-                self.objectCache[entry] = object
-            end
-            return object
-        end,
-        tooltip = GameData.CollectionTooltip, isVisible = self.options.isVisible,
-        onChanged = function(preparer)
-            self:RefreshDeferredTotals()
-            self.itemLedger:Refresh()
-            if preparer.pending == 0 and not preparer.notifiedComplete and self.options.onPrepared then
-                preparer.notifiedComplete = true
-                self.options.onPrepared(preparer)
-            end
-        end,
-    })
+    self.preparer = Preparer.Collection({
+        progress = self.progress, objectCache = self.objectCache, isVisible = self.options.isVisible,
+    }, function(preparer)
+        self:RefreshDeferredTotals()
+        self.itemLedger:Refresh()
+        if preparer.pending == 0 and not preparer.notifiedComplete and self.options.onPrepared then
+            preparer.notifiedComplete = true
+            self.options.onPrepared(preparer)
+        end
+    end)
     local prepared = {}
     for _, group in ipairs(groups) do prepared[#prepared + 1] = self.preparer:AddGroup(group.name, group.items) end
     self.summary.hidden = false

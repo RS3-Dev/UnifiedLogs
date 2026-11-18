@@ -253,26 +253,8 @@ function CollectionLogPage:RebuildGrid(preserveScroll)
         self.options.progress.viewport = showGroupHeaders
     end
     if self.options.deferCollections and showGroupHeaders then
-        local settings = {}
-        for key, value in pairs(self.options) do settings[key] = value end
-        settings.getValue = self.options.readValue or self.options.getValue
-        settings.stateOnly, settings.visibleBudget = true, 32
-        settings.isCached = self.options.progress and function(entry)
-            local resolved = self.options.progress.resolved or {}
-            return resolved[entry.v] and (not entry.storedVariable or resolved[entry.storedVariable])
-        end
         self.objectCache = self.options.objectCache or self.objectCache or {}
-        settings.cachedObject = function(entry) return self.objectCache[entry] end
-        settings.resolveObject = function(name, entry, index)
-            local object = self.objectCache[entry]
-            if object == nil then
-                object = self.options.resolveObject(name, entry, index)
-                self.objectCache[entry] = object
-            end
-            return object
-        end
-        settings.onChanged = function() self:RefreshPreparedProgress() end
-        self.preparer = Preparer.new(settings)
+        self.preparer = Preparer.Collection(self.options, function() self:RefreshPreparedProgress() end, self.objectCache)
     end
     for _, groupName in ipairs(selectedGroups) do
         local entries = self.options.logs[groupName] or {}

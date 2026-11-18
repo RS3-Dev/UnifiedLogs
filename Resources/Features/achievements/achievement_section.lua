@@ -1,6 +1,5 @@
 -- Keep overview, cape browsing, quests, and area tasks on separate lazy pages.
 local Section = require("Resources/Shared/ui/section_page")
-local Requirements = require("Resources/Features/achievements/cape_requirements")
 local Page = {}
 function Page.new(parent, context, feature)
     if context.state.achievementTab == nil then
@@ -12,29 +11,20 @@ function Page.new(parent, context, feature)
             return require("Resources/Features/achievements/area_tasks_page").new(mount, child)
         end
         if mode == "overview" then
-            local view
-            local snapshot = Requirements.NewSnapshot({ isVisible = child.isVisible,
-                onChanged = function() if view then view:RefreshProgress() end end })
-            view = require("Resources/Features/achievements/cape_overview").new(mount, {
-                width = mount.width, height = mount.height, capes = feature.capes, snapshot = snapshot,
-                fastSummary = true,
+            return require("Resources/Features/achievements/cape_overview").new(mount, {
+                width = mount.width, height = mount.height, capes = feature.capes, fastSummary = true,
                 onSelect = function(cape) child.state.achievementMode = cape; host:SetMode("achievements") end,
             })
-            local destroy = view.Destroy
-            view.Destroy = function(self) snapshot:Stop(); destroy(self) end
-            return view
         end
-        local modes = {}
-        for _, item in ipairs(feature.capeModes) do if item.id ~= "overview" then modes[#modes + 1] = { id = item.id, label = item.cape.name, cape = item.cape } end end
-        if child.state.achievementMode == "overview" then child.state.achievementMode = modes[1].id end
+        if child.state.achievementMode == "overview" then child.state.achievementMode = feature.capeModes[1].id end
         return require("Resources/Features/achievements/achievements_page").new(mount, {
-            width = mount.width, height = mount.height, section = { modes = modes, capes = feature.capes },
+            width = mount.width, height = mount.height, section = feature,
             state = child.state, saveState = child.saveState, isVisible = child.isVisible,
         })
     end)
     local refresh = section.RefreshAccountState
     section.RefreshAccountState = function(self)
-        if context.state.achievementTab == "overview" then self:SetMode("overview")
+        if context.state.achievementTab == "overview" then self:SetMode("overview", true)
         else return refresh(self) end
     end
     local setOrder = section.SetOrderView

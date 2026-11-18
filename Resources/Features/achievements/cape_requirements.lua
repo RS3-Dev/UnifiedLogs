@@ -1,5 +1,4 @@
 -- Build completion cape requirements
-local SkillCatalog = require("Resources/Shared/skills/skill_catalog")
 local AchievementText = require("Resources/Shared/achievements/achievement_text")
 local ClientConfig = require("Resources/Shared/client_config")
 
@@ -13,7 +12,6 @@ function CapeRequirements.NewSnapshot(options)
         summaryNodes = {},
         detailNodes = {},
         deferred = options ~= nil,
-        achievementOnly = options ~= nil and (options.achievementOnly == true or options.shallow == true),
         states = {}, queue = {}, cursor = 1, visible = {},
     }
     if options then
@@ -123,21 +121,6 @@ local function achievementFromCape(cape)
         or achievementFromID(tonumber(cape.achievementID))
 end
 
--- Resolve an achievement reference
-local function achievementFromReference(reference)
-    if reference == nil then return nil end
-    local nested = firstField(reference, { "achievement", "achievementConfig", "config" })
-    if nested ~= nil and type(nested) ~= "string" and type(nested) ~= "number" then
-        reference = nested
-    end
-    if field(reference, "requirements") ~= nil or field(reference, "prereqs") ~= nil then
-        return reference
-    end
-    local achievementID = type(reference) == "number" and reference
-        or numberField(reference, { "id", "achievementID", "achievementId" })
-    return achievementFromID(achievementID)
-end
-
 -- Check achievement completion
 local function achievementComplete(achievement)
     if field(achievement, "complete") == true or field(achievement, "isComplete") == true then
@@ -153,102 +136,6 @@ local function achievementKey(achievement)
     if achievementID ~= nil then return "achievement:" .. tostring(achievementID) end
     local configName = stringField(achievement, { "configName", "name" })
     return configName ~= nil and "achievement:" .. configName or nil
-end
-
--- Build an achievement node
-local function achievementNode(reference, path, cache, details, snapshot)
-    local achievement = achievementFromReference(reference)
-    if achievement == nil then return nil end
-    local key = achievementKey(achievement)
-    if key == nil or path[key] then return nil end
-    if cache[key] ~= nil then return cache[key] end
-
-    local node = {
-        key = key,
-        children = {},
-    }
-    trackNode(snapshot, node, function() return achievementComplete(achievement) end)
-    if details then
-        local achievementID = numberField(achievement, { "id", "achievementID", "achievementId" })
-        node.source = achievement
-        node.name = stringField(achievement, { "displayName", "title", "name" })
-            or "Achievement " .. tostring(achievementID or "")
-        node.description = AchievementText.Description(achievement)
-        node.runeScore = tonumber(field(achievement, "runeScore")) or 0
-    end
-    cache[key] = node
-
-    path[key] = true
-    local seen = {}
-    for _, sourceName in ipairs({ "requirements", "prereqs" }) do
-        local source = field(achievement, sourceName)
-        for _, referenceValue in ipairs(values(field(source, "achievements"))) do
-            local child = achievementNode(referenceValue, path, cache, details, snapshot)
-            if child ~= nil and not seen[child.key] then
-                seen[child.key] = true
-                node.children[#node.children + 1] = child
-            end
-        end
-
-        for _, questReference in ipairs(values(field(source, "quests"))) do
-            local questID = type(questReference) == "number" and questReference
-                or numberField(questReference, { "id", "questID", "questId" })
-            local quest = ClientConfig.FromID(config ~= nil and config.Quest or nil, questID)
-            local questKey = questID ~= nil and "quest:" .. tostring(questID) or nil
-            if questKey ~= nil and not seen[questKey] then
-                seen[questKey] = true
-                local child = {
-                    key = questKey,
-                    children = {},
-                }
-                trackNode(snapshot, child, function() return field(quest, "hasFinishedQuest") == true end)
-                if details then
-                    child.name = stringField(quest, { "displayName", "name" })
-                        or stringField(questReference, { "displayName", "name" })
-                        or "Quest " .. tostring(questID)
-                end
-                node.children[#node.children + 1] = child
-            end
-        end
-
-        for _, skillReference in ipairs(values(field(source, "skills"))) do
-            local skillID = type(skillReference) == "number" and skillReference
-                or numberField(skillReference, { "id", "skillID", "skillId" })
-            local level = numberField(skillReference, {
-                "minimumLevel",
-                "level",
-                "requiredLevel",
-            }) or 1
-            local skillKey = skillID ~= nil
-                    and "skill:" .. tostring(skillID) .. ":" .. tostring(level)
-                or nil
-            if skillKey ~= nil and not seen[skillKey] then
-                seen[skillKey] = true
-                local child = {
-                    key = skillKey,
-                    children = {},
-                }
-                trackNode(snapshot, child, function()
-                    local currentLevel
-                    if Player ~= nil and Player.GetLevelGameplay ~= nil then
-                        pcall(function() currentLevel = Player.GetLevelGameplay(skillID) end)
-                    end
-                    currentLevel = tonumber(currentLevel)
-                    return currentLevel ~= nil and currentLevel >= level
-                end)
-                if details then
-                    local skill = SkillCatalog.byID[skillID]
-                    child.name = stringField(skillReference, { "displayName", "name" })
-                        or skill ~= nil and skill.name
-                        or "Skill " .. tostring(skillID)
-                    child.description = "Level " .. tostring(level)
-                end
-                node.children[#node.children + 1] = child
-            end
-        end
-    end
-    path[key] = nil
-    return node
 end
 
 -- Build the achievement guide
@@ -394,22 +281,30 @@ local function progress(root)
 end
 
 -- Build a cape requirement snapshot
-function CapeRequirements.BuildAchievementList(cape, snapshot)
+local function buildGraph(cape, snapshot, details)
     local source = achievementFromCape(cape)
     if source == nil then return nil end
-    local root = { key = "list", children = {} }
-    local cache = nodeCache(snapshot, true)
-    local path = {}
+    local root = { key = achievementKey(source), children = {} }
+    local cache = nodeCache(snapshot, details)
+    local path = { [root.key] = true }
     local function visit(reference)
         local achievement = field(reference, "achievement") or reference
-        if type(achievement) == "number" then achievement = achievementFromID(achievement) end
+        if type(achievement) == "number" then
+            local key = "achievement:" .. achievement
+            if path[key] then return nil end
+            if cache[key] then return cache[key] end
+            achievement = achievementFromID(achievement)
+        end
         local key = achievementKey(achievement)
         if key == nil or path[key] then return nil end
         if cache[key] then return cache[key] end
-        local node = { key = key, source = achievement, children = {}, achievementOnly = true,
-            name = stringField(achievement, { "displayName", "name" }) or key,
-            description = AchievementText.Description(achievement),
-            runeScore = tonumber(field(achievement, "runeScore")) or 0 }
+        local node = { key = key, children = {}, achievementOnly = true }
+        if details then
+            node.source = achievement
+            node.name = stringField(achievement, { "displayName", "title", "name" }) or key
+            node.description = AchievementText.Description(achievement)
+            node.runeScore = tonumber(field(achievement, "runeScore")) or 0
+        end
         cache[key], path[key] = node, true
         trackNode(snapshot, node, function()
             node.prereqsComplete = field(achievement, "prereqsComplete")
@@ -438,9 +333,8 @@ function CapeRequirements.BuildAchievementList(cape, snapshot)
             root.children[#root.children + 1] = node
         end
     end
-    table.sort(root.children, function(a, b) return a.name < b.name end)
-    local complete, total = progress(root)
-    return { cape = cape, root = root, linearRows = CapeRequirements.LinearRows(root), complete = complete, total = total }
+    if details then table.sort(root.children, function(a, b) return a.name < b.name end) end
+    return root
 end
 
 -- Read the cape's native progress without enumerating any requirements.
@@ -455,20 +349,10 @@ end
 
 -- Build a cape requirement snapshot
 function CapeRequirements.Build(cape, snapshot)
-    if snapshot and snapshot.achievementOnly then return CapeRequirements.BuildAchievementList(cape, snapshot) end
-    local achievement = achievementFromCape(cape)
-    if achievement == nil then return nil end
-    local root = achievementNode(achievement, {}, nodeCache(snapshot, true), true, snapshot)
+    local root = buildGraph(cape, snapshot, true)
     if root == nil then return nil end
-    local linearRows = CapeRequirements.LinearRows(root)
     local complete, total = progress(root)
-    return {
-        cape = cape,
-        root = root,
-        linearRows = linearRows,
-        complete = complete,
-        total = total,
-    }
+    return { cape = cape, root = root, linearRows = CapeRequirements.LinearRows(root), complete = complete, total = total }
 end
 
 -- Select visible requirement rows
@@ -480,13 +364,7 @@ end
 
 -- Build the cape progress summary
 function CapeRequirements.Summary(cape, snapshot)
-    local root = achievementNode(
-        achievementFromCape(cape),
-        {},
-        nodeCache(snapshot, false),
-        false,
-        snapshot
-    )
+    local root = buildGraph(cape, snapshot, false)
     if root == nil then return { complete = 0, total = 0, available = false } end
     local complete, total, pending = progress(root)
     return {

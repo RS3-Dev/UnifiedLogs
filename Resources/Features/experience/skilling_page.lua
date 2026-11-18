@@ -21,12 +21,7 @@ function Page.new(parent, context, feature)
             options.selected = "Skill Pets"
             return Collection.new(mount, options)
         end
-        return require("Resources/Features/misc/thieving/thieving_page").new(mount, {
-            width = mount.width, height = mount.height, groups = child.registry.byID.thieving.groups,
-            progress = child.progress, deferCollections = child.deferCollections, isVisible = child.isVisible,
-            selected = child.state.selectedThievingGroup, showPersonalBests = child.state.showPersonalBests,
-            onSelect = function(value) child.state.selectedThievingGroup = value; child.saveState() end,
-        })
+        return child.registry.byID.thieving.CreatePage(mount, child)
     end)
 end
 return Page

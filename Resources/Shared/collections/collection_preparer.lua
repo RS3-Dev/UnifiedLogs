@@ -1,5 +1,6 @@
 -- Prepare visible collection entries first, with bounded work for aggregate totals.
 local Entries = require("Resources/Shared/collections/collection_entries")
+local GameData = require("Resources/Lib/game_data")
 local Preparer = {}
 Preparer.__index = Preparer
 local nextID = 0
@@ -8,6 +9,29 @@ function Preparer.new(options)
     nextID = nextID + 1
     return setmetatable({ options = options, jobs = {}, groups = {}, visible = {}, cursor = 1,
         pending = 0, complete = {}, event = "unifiedlogs_collection_prepare_" .. nextID }, Preparer)
+end
+
+-- Share cache, viewport, and account-read policy across item collection pages.
+function Preparer.Collection(options, onChanged, cache)
+    local settings, progress = {}, options.progress
+    for key, value in pairs(options) do settings[key] = value end
+    cache = cache or options.objectCache or {}
+    settings.getValue = options.readValue or options.getValue or function(name) return progress:ReadValueNow(name) end
+    settings.isCollected = options.isCollected or function(entry, value) return progress:IsCollected(entry, value) end
+    settings.stateOnly, settings.visibleBudget, settings.onChanged = true, 32, onChanged
+    settings.isCached = progress and function(entry)
+        local resolved = progress.resolved or {}
+        return resolved[entry.v] and (not entry.storedVariable or resolved[entry.storedVariable])
+    end
+    settings.cachedObject = function(entry) return cache[entry] end
+    local resolve = options.resolveObject or GameData.CollectionObject
+    settings.resolveObject = function(name, entry, index)
+        local object = cache[entry]
+        if object == nil then object = resolve(name, entry, index); cache[entry] = object end
+        return object
+    end
+    settings.tooltip = options.tooltip or GameData.CollectionTooltip
+    return Preparer.new(settings)
 end
 
 function Preparer:AddGroup(name, entries)

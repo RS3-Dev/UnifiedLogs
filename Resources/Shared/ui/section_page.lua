@@ -8,8 +8,9 @@ function Page.new(parent, context, modes, stateKey, create)
     self.root = UI.ContentLayer(parent)
     self.root:SetPos(context.x or 0, context.y or 0)
     self.root:SetSize(context.width, context.height)
-    function self:SetMode(value)
+    function self:SetMode(value, force)
         local mode = self.host:Mode(value) or modes[1]
+        if not force and self.host.activeMode == mode.id then return end
         context.state[stateKey] = mode.id
         self.activeView = self.host:Activate(mode.id, true, function(_, mount)
             local child = {}
