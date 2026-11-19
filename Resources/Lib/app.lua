@@ -365,6 +365,7 @@ function App:MountSection(sectionID)
         xpTracker = self.xpTracker,
         windowParent = self.windowParent,
         isVisible = function() return self:IsLogsVisible() end,
+        closeLogs = function() self:CloseLogs() end,
         saveState = function() self:SaveState() end,
         refreshProgress = function() self.accountProgress:Refresh() end,
     })
@@ -452,10 +453,14 @@ function App:OpenLogs()
     return true
 end
 
+function App:CloseLogs()
+    if self.window ~= nil then self.window:Close() end
+    return true
+end
+
 function App:ToggleLogs()
     if self:IsLogsVisible() then
-        self.window:Close()
-        return true
+        return self:CloseLogs()
     end
     return self:OpenLogs()
 end
