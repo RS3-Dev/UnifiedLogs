@@ -238,7 +238,7 @@ function CollectorCollectionList:RenderRange(first, last)
         grid:SetHidden(true)
     end
     if self.virtualLayer ~= nil then self.virtualLayer:Destroy() end
-    self.virtualLayer = ui.Layer.new(self.rowScroll.content)
+    self.virtualLayer = UI.ContentLayer(self.rowScroll.content)
     self.virtualLayer:SetPos(0, 0)
     self.virtualLayer:SetSize(rowWidth, math.max(scrollHeight, contentHeight))
     self.virtualLayer.clickthrough = true

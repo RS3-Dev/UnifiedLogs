@@ -162,6 +162,7 @@ function BossPatchValuesWindow.new(parent, snapshot, onClose)
     local contentHeight = math.max(454, INSET * 2 + #lines * LINE_HEIGHT)
     local window
     window = prettyui.Window.new(parent, {
+        categoryID = "auto",
         title = "Stored OTA Values",
         x = -380,
         y = -260,

@@ -1,4 +1,5 @@
 -- Render completion cape models
+local UI = require("Resources/Shared/ui/components")
 local CapeModelCanvas = {}
 
 local NATIVE_VIEW_DISTANCE = 900
@@ -49,12 +50,12 @@ function CapeModelCanvas.Create(parent, cape, options)
 
     local canvas, group
     local ok = pcall(function()
-        group = ui.ModelGroup.new(parent)
+        group = UI.NewComponent(ui.ModelGroup, parent)
         group:SetPos(options.x or 0, options.y or 0)
         group:SetSize(options.width, options.height)
         group.clickthrough = true
 
-        local model = ui.Model.new(group)
+        local model = UI.NewComponent(ui.Model, group)
         model:SetPos(0, 0)
         model:SetSize(options.width, options.height)
         model:SetModel(ui.ModelType.MODEL, modelID)

@@ -93,6 +93,7 @@ function LauncherPanel.new(parent, options)
     self.options = options or {}
     self.host = UI.RootLayer(parent)
     self.root = prettyui.SimpleView.new(self.host, {
+        categoryID = "auto",
         width = parent.width,
         height = parent.height,
         contentHeight = CONTENT_HEIGHT

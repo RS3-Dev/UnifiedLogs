@@ -31,7 +31,7 @@ local MENU_EVENT = "unifiedlogs_trophy_menu"
 
 -- Draw the selected trophy frame
 local function selectionFrame(parent)
-    local root = ui.Layer.new(parent)
+    local root = UI.ContentLayer(parent)
     root:SetSize(SLOT_SIZE, SLOT_SIZE)
     root.clickthrough = true
     root.hidden = true
@@ -79,7 +79,7 @@ function TrophyTab.new(parent, options)
     self.windowParent = self.options.windowParent or parent
     self.menuSubscribed = false
 
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true

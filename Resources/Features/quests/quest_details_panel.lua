@@ -23,7 +23,7 @@ end
 function QuestDetailsPanel.new(parent, options)
     local self = setmetatable({}, QuestDetailsPanel)
     self.options = options
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true
@@ -192,7 +192,7 @@ function QuestDetailsPanel:RenderSkills(state, skillWidth, scrollTop, scrollHeig
         local spriteID = SkillIcons.SpriteID(requirement.id)
         local labelX = 12
         if spriteID ~= nil then
-            local icon = ui.Sprite.new(self.skillScroll.content)
+            local icon = UI.NewComponent(ui.Sprite, self.skillScroll.content)
             icon:SetPos(8, skillY + 4)
             icon:SetSize(24, 24)
             icon.spriteID = spriteID
@@ -348,7 +348,7 @@ function QuestDetailsPanel:RenderOrder(state, options, questX, questWidth, scrol
             end)
             labelWidth = math.max(1, math.min(ok and measured or #linkedQuest.name * 7,
                 rowWidth - labelX - 58))
-            icon = ui.Sprite.new(self.orderScroll.content)
+            icon = UI.NewComponent(ui.Sprite, self.orderScroll.content)
             icon:SetPos(labelX + labelWidth + 6, y + 8)
             icon:SetSize(16, 16)
             icon.spriteID = id.Sprite.RS3_ICON_MENU_TAB_QUEST_LIST_0

@@ -1,4 +1,5 @@
 -- Render the misc page
+local UI = require("Resources/Shared/ui/components")
 local LazyTabs = require("Resources/Shared/ui/lazy_tabs")
 local CollectionLogPage = require("Resources/Shared/collections/collection_log_page")
 
@@ -8,7 +9,7 @@ MiscPage.__index = MiscPage
 function MiscPage.new(parent, options)
     local self = setmetatable({}, MiscPage)
     self.options = options
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(options.x or 0, options.y or 0)
     self.root:SetSize(options.width, options.height)
     self.root.clickthrough = true

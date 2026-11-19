@@ -16,16 +16,16 @@ local GOLD = 0xF2C66DFF
 local function setVisible(component, visible) component.hidden = not visible end
 
 function DailyExperienceList:_CreateSlot()
-    local root = ui.Layer.new(self.rowLayer)
+    local root = UI.ContentLayer(self.rowLayer)
     root.clickthrough = true
     local slot = {
         root = root,
-        background = ui.Rectangle.new(root),
-        divider = ui.Rectangle.new(root),
+        background = UI.NewComponent(ui.Rectangle, root),
+        divider = UI.NewComponent(ui.Rectangle, root),
         cells = {},
     }
     for column = 1, 4 do
-        slot.cells[column] = ui.Text.new(root)
+        slot.cells[column] = UI.NewComponent(ui.Text, root)
     end
     self.pool[#self.pool + 1] = slot
     return slot
@@ -126,11 +126,11 @@ function DailyExperienceList.new(scroll, options)
     }, DailyExperienceList)
     self.rowsY = self.tableY + self.rowHeight
 
-    self.rowLayer = ui.Layer.new(scroll.content)
+    self.rowLayer = UI.ContentLayer(scroll.content)
     self.rowLayer:SetPos(self.tableX, 0)
     self.rowLayer.clickthrough = true
 
-    self.chromeLayer = ui.Layer.new(scroll.content)
+    self.chromeLayer = UI.ContentLayer(scroll.content)
     self.chromeLayer:SetPos(self.tableX, 0)
     self.chromeLayer.clickthrough = true
 
@@ -139,7 +139,7 @@ function DailyExperienceList.new(scroll, options)
         local left = math.floor(self.rowWidth * self.columns[column])
         local right = math.floor(self.rowWidth * self.columns[column + 1])
         UI.BindRectangle(
-            ui.Rectangle.new(self.chromeLayer),
+            UI.NewComponent(ui.Rectangle, self.chromeLayer),
             left,
             self.tableY,
             right - left,
@@ -147,7 +147,7 @@ function DailyExperienceList.new(scroll, options)
             HEADER
         )
         UI.BindText(
-            ui.Text.new(self.chromeLayer),
+            UI.NewComponent(ui.Text, self.chromeLayer),
             headers[column],
             left + 8,
             self.tableY,
@@ -159,12 +159,12 @@ function DailyExperienceList.new(scroll, options)
             }
         )
     end
-    UI.BindRectangle(ui.Rectangle.new(self.chromeLayer), 0, self.tableY, self.rowWidth, 1, BORDER)
+    UI.BindRectangle(UI.NewComponent(ui.Rectangle, self.chromeLayer), 0, self.tableY, self.rowWidth, 1, BORDER)
     -- Edges that stretch with the row count
-    self.bottomEdge = ui.Rectangle.new(self.chromeLayer)
+    self.bottomEdge = UI.NewComponent(ui.Rectangle, self.chromeLayer)
     self.columnEdges = {}
     for column = 1, 5 do
-        self.columnEdges[column] = ui.Rectangle.new(self.chromeLayer)
+        self.columnEdges[column] = UI.NewComponent(ui.Rectangle, self.chromeLayer)
     end
     self:_Layout()
 

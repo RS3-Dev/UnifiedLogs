@@ -53,6 +53,7 @@ function SidebarList.new(parent, options)
     self.host:SetPos(options.x or 0, options.y or 0)
     self.host:SetSize(options.width, options.height)
     local ok, list = pcall(prettyui.List.new, self.host, {
+        categoryID = "auto",
         x = 0,
         y = 0,
         width = options.width,

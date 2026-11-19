@@ -27,7 +27,7 @@ local MODEL_EVENT = "unifiedlogs_cape_models"
 
 -- Create a clickable cape card
 local function clickableCard(parent, x, y, width, height, action)
-    local root = ui.Layer.new(parent)
+    local root = UI.ContentLayer(parent)
     root:SetPos(x, y)
     root:SetSize(width, height)
     root.clickthrough = false
@@ -56,7 +56,7 @@ end
 function CapeOverview.new(parent, options)
     local self = setmetatable({}, CapeOverview)
     self.options = options
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(self.options.x or 0, self.options.y or 0)
     self.root:SetSize(self.options.width, self.options.height)
     self.root.clickthrough = true
@@ -92,7 +92,7 @@ function CapeOverview:Build()
         local formerModelHeight = math.max(100, height - 178)
         local modelScale = BASE_MODEL_SCALE * MODEL_GROWTH * formerModelHeight / modelHeight
         -- Reserve the model layer now so the card chrome still draws above it
-        local slot = ui.Layer.new(control.root)
+        local slot = UI.ContentLayer(control.root)
         slot:SetPos(modelX, modelY)
         slot:SetSize(modelWidth, modelHeight)
         slot.clickthrough = true

@@ -107,7 +107,7 @@ function ExperienceChart.new(parent, options)
         gridLabels = {},
         axisLabels = {},
     }, ExperienceChart)
-    self.root = ui.Layer.new(parent)
+    self.root = UI.ContentLayer(parent)
     self.root:SetPos(options.x or 0, options.y or 0)
     self.root:SetSize(width, height)
     self.root.clickthrough = true
@@ -129,15 +129,15 @@ function ExperienceChart.new(parent, options)
         alignHorizontal = ui.AlignMode.BOTTOMRIGHT,
         alignVertical = ui.AlignMode.CENTRE,
     })
-    self.plotLeft = ui.Rectangle.new(root)
-    self.plotBottom = ui.Rectangle.new(root)
+    self.plotLeft = UI.NewComponent(ui.Rectangle, root)
+    self.plotBottom = UI.NewComponent(ui.Rectangle, root)
     for index = 1, 5 do
-        self.gridLines[index] = ui.Rectangle.new(root)
-        self.gridLabels[index] = ui.Text.new(root)
-        self.axisLabels[index] = ui.Text.new(root)
+        self.gridLines[index] = UI.NewComponent(ui.Rectangle, root)
+        self.gridLabels[index] = UI.NewComponent(ui.Text, root)
+        self.axisLabels[index] = UI.NewComponent(ui.Text, root)
     end
-    self.emptyText = ui.Text.new(root)
-    self.hoverOutline = ui.Rectangle.new(root)
+    self.emptyText = UI.NewComponent(ui.Text, root)
+    self.hoverOutline = UI.NewComponent(ui.Rectangle, root)
     self.hoverOutline.fill = false
     self.hoverOutline.outlineThickness = 1
     self.hoverOutline.rgba = GOLD
@@ -166,7 +166,7 @@ end
 function ExperienceChart:Segment(index)
     local slot = self.segments[index]
     if slot ~= nil then return slot end
-    slot = { rectangle = ui.Rectangle.new(self.root) }
+    slot = { rectangle = UI.NewComponent(ui.Rectangle, self.root) }
     slot.rectangle:Subscribe(ui.Hook.ONMOUSEOVER, function()
         self:ShowHover(slot)
         return true
@@ -255,7 +255,7 @@ function ExperienceChart:DrawLegend(series, legendHeight)
         end
         local item = self.legend[index]
         if item == nil then
-            item = { swatch = ui.Rectangle.new(self.root), label = ui.Text.new(self.root) }
+            item = { swatch = UI.NewComponent(ui.Rectangle, self.root), label = UI.NewComponent(ui.Text, self.root) }
             self.legend[index] = item
         end
         UI.BindRectangle(item.swatch, legendX, legendY + 8, 7, 7, skill.colour)
