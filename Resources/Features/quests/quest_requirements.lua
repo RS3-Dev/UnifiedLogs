@@ -32,6 +32,32 @@ function QuestRequirements.Status(questID)
     return "incomplete"
 end
 
+-- Check the full prerequisite chain without requiring the target to be finished.
+-- Missing records, unreadable levels and malformed cycles cannot prove eligibility.
+function QuestRequirements.RequirementsMet(target, byID, options)
+    options = options or {}
+    local isFinished = options.isFinished or QuestRequirements.IsFinished
+    local checked, visiting = {}, {}
+    local function visit(quest)
+        if quest == nil or visiting[quest.id] then return false end
+        if checked[quest.id] then return true end
+        visiting[quest.id] = true
+        for _, requirement in ipairs(quest.preReqSkills or {}) do
+            local skillID, minimum = tonumber(requirement.id), tonumber(requirement.minimumLevel)
+            local level = skillID ~= nil and options.playerLevel ~= nil
+                and tonumber(options.playerLevel(skillID)) or nil
+            if minimum == nil or level == nil or not (level >= minimum) then return false end
+        end
+        for _, prerequisite in ipairs(quest.preReqQuests or {}) do
+            if not isFinished(prerequisite.id) or not visit(byID[prerequisite.id]) then return false end
+        end
+        visiting[quest.id] = nil
+        checked[quest.id] = true
+        return true
+    end
+    return visit(target)
+end
+
 -- Build the quest requirement order
 function QuestRequirements.RequirementOrder(target, byID)
     local ordered, visited, visiting = {}, {}, {}

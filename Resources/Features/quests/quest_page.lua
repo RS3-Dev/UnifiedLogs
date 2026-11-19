@@ -20,7 +20,7 @@ local LIST_TOP = 34
 local FILTER_BUTTON_SIZE = 24
 local FILTER_GAP = 6
 local FILTER_SHEET_WIDTH = 230
-local FILTER_SHEET_HEIGHT = 216
+local FILTER_SHEET_HEIGHT = 248
 
 local QUEST_SORT_NAME = 1
 local QUEST_SORT_STATUS = 2
@@ -66,6 +66,7 @@ function QuestPage.new(parent, options)
     self.showMiniquests = self.options.showMiniquests ~= false
     self.showSeasonalQuests = self.options.showSeasonalQuests ~= false
     self.availableInQH = self.options.availableInQH == true
+    self.requirementsMet = self.options.requirementsMet == true
     self.sortBy = (self.options.sortBy == "status" or self.options.sortBy == "release")
             and self.options.sortBy
         or "name"
@@ -175,6 +176,21 @@ function QuestPage.new(parent, options)
             self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
         end,
     })
+    self.requirementsChoice = prettyui.CheckboxButton.new(self.filterSheet, {
+        { text = "Requirements met", value = "met",
+            tooltip = "Require skill levels throughout the prerequisite chain and completion of all prerequisite quests." },
+    }, {
+        x = 8, y = 208, width = FILTER_SHEET_WIDTH - 16,
+        selectedValues = self.requirementsMet and { "met" } or {},
+        selectionCursor = false,
+        onChange = function(control)
+            self.requirementsMet = control:IsSelected("met")
+            self:RebuildList(true)
+            if self.options.onRequirementsMetChange ~= nil then
+                self.options.onRequirementsMetChange(self.requirementsMet)
+            end
+        end,
+    })
     text(self.filterSheet, "STATUS", 8, 60, FILTER_SHEET_WIDTH - 16, 18, {
         font = id.Font.MUSEO_SANS_11PT_REGULAR,
         colour = 0xF2C66DFF,
@@ -250,6 +266,18 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
 
     local height = math.max(120, self.root.height - LIST_TOP)
     local visible, needle = {}, UI.Lower(self.search)
+    -- Share live reads within this rebuild, and discard them before the next one.
+    local levels, finished = {}, {}
+    local requirementOptions = {
+        playerLevel = function(skillID)
+            if levels[skillID] == nil then levels[skillID] = SkillIcons.PlayerLevel(skillID) or false end
+            return levels[skillID] ~= false and levels[skillID] or nil
+        end,
+        isFinished = function(questID)
+            if finished[questID] == nil then finished[questID] = QuestRequirements.IsFinished(questID) end
+            return finished[questID]
+        end,
+    }
     for _, quest in ipairs(self.records) do
         local searchMatches = needle == ""
             or string.find(self.searchNames[quest], needle, 1, true) ~= nil
@@ -260,7 +288,9 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
         local typeMatches = (self.showMiniquests or not quest.isMiniquest)
             and (self.showSeasonalQuests or not quest.isSeasonalQuest)
         local helperMatches = not self.availableInQH or self.helperQuests[quest.id] ~= nil
-        if searchMatches and statusMatches and typeMatches and helperMatches then
+        if searchMatches and statusMatches and typeMatches and helperMatches
+            and (not self.requirementsMet
+                or QuestRequirements.RequirementsMet(quest, self.byID, requirementOptions)) then
             visible[#visible + 1] = { quest = quest, status = status }
         end
     end
@@ -480,11 +510,13 @@ function QuestPage:Destroy()
     if self.emptySidebarText ~= nil then self.emptySidebarText:Destroy() end
     if self.statusCombo ~= nil then self.statusCombo:Destroy() end
     if self.typeChoices ~= nil then self.typeChoices:Destroy() end
+    if self.requirementsChoice ~= nil then self.requirementsChoice:Destroy() end
     if self.sortCombo ~= nil then self.sortCombo:Destroy() end
     if self.filterButton ~= nil then self.filterButton:Destroy() end
     if self.detailView ~= nil then self.detailView:Destroy() end
     self.statusCombo = nil
     self.typeChoices = nil
+    self.requirementsChoice = nil
     self.sortCombo = nil
     self.filterButton = nil
     self.detailView = nil

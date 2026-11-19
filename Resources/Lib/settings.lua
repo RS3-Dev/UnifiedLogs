@@ -70,6 +70,7 @@ local function defaults()
         questShowMiniquests = true,
         questShowSeasonalQuests = true,
         questAvailableInQH = false,
+        questRequirementsMet = false,
         questSortBy = "name",
         questUseCumulativeRequirements = true,
         questOrderView = "linear",
@@ -199,6 +200,9 @@ function Settings.Load(registry)
     end
     if type(saved.questAvailableInQH) == "boolean" then
         state.questAvailableInQH = saved.questAvailableInQH
+    end
+    if type(saved.questRequirementsMet) == "boolean" then
+        state.questRequirementsMet = saved.questRequirementsMet
     end
     if type(saved.questUseCumulativeRequirements) == "boolean" then
         state.questUseCumulativeRequirements = saved.questUseCumulativeRequirements
@@ -349,6 +353,7 @@ function Settings.Save(state)
         questShowMiniquests = state.questShowMiniquests,
         questShowSeasonalQuests = state.questShowSeasonalQuests,
         questAvailableInQH = state.questAvailableInQH,
+        questRequirementsMet = state.questRequirementsMet,
         questSortBy = state.questSortBy,
         questUseCumulativeRequirements = state.questUseCumulativeRequirements,
         questOrderView = state.questOrderView,
