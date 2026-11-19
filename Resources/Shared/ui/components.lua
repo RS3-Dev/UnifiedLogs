@@ -8,17 +8,33 @@ UI.NO_CURSOR = {}
 -- windows, tabs and tooltips. Their managed descendants use automatic allocation.
 -- Check the shared static namespace before calling the native constructor.
 function UI.ContentLayer(parent)
-    local collection = parent.parentStatic or parent
+    -- A static client layer may have a static ancestor of its own.
+    local collection = parent.categoryID == -1 and parent or (parent.parentStatic or parent)
     assert(parent == collection or parent.categoryID == 0,
         "Unified Logs content layers require a static or category-zero parent")
+    -- Resolve IDs directly instead of walking the entire UI for every pooled row.
+    local interfaces = ui.Interfaces
+    if interfaces and interfaces.GetComponent and interfaces.GetInterface
+        and type(collection.interfaceID) == "number" and type(collection.staticID) == "number"
+        and interfaces:GetInterface(collection.interfaceID) ~= nil
+        and (parent == collection or interfaces:GetComponent(collection.interfaceID,
+            collection.staticID, parent.categoryID, parent.dynamicID) == parent) then
+        local nextID = parent == collection and 0 or parent.dynamicID + 1
+        while nextID < 4096 and interfaces:GetComponent(collection.interfaceID,
+            collection.staticID, 0, nextID) ~= nil do nextID = nextID + 1 end
+        assert(nextID < 4096, "Unified Logs could not find a free category-zero UI ID")
+        if parent == collection then return ui.Layer.new(parent) end
+        return ui.Layer.new(parent, 0, nextID)
+    end
+    assert(type(collection.IterateDynamicComponents) == "function",
+        "Unified Logs could not inspect the UI allocation namespace")
     local used, visited, pending = {}, {}, { collection }
     while #pending > 0 do
         local current = table.remove(pending)
-        assert(type(current.IterateDynamicComponents) == "function",
-            "Unified Logs could not inspect the UI allocation namespace")
         current:IterateDynamicComponents(function(component)
             if component.categoryID == 0 then used[component.dynamicID] = true end
-            if not visited[component] then
+            -- Native text and sprite leaves occupy IDs without exposing children.
+            if not visited[component] and type(component.IterateDynamicComponents) == "function" then
                 visited[component] = true
                 pending[#pending + 1] = component
             end
@@ -28,7 +44,13 @@ function UI.ContentLayer(parent)
     local nextID = parent == collection and 0 or parent.dynamicID + 1
     while used[nextID] do nextID = nextID + 1 end
     assert(nextID < 4096, "Unified Logs could not find a free category-zero UI ID")
+    if parent == collection then return ui.Layer.new(parent) end
     return ui.Layer.new(parent, 0, nextID)
+end
+
+-- Drop stale PrettyUI occupancy snapshots before rebuilding pooled controls.
+function UI.RefreshComponentIDs(parent)
+    if prettyui.RefreshComponentIDs ~= nil then prettyui.RefreshComponentIDs(parent) end
 end
 
 -- Preserve the full-size, clickthrough ownership root used by pages and windows.

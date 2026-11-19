@@ -13,6 +13,7 @@ function SidebarLayout.Attach(root, options)
     local y = options.sidebarY or 0
     local background =
         UI.Rectangle(root, 0, y, width, root.height - y, options.sidebarColour or 0x15120ECC)
+    background:MoveToBack()
     local divider =
         UI.Rectangle(root, width, y, 1, root.height - y, options.dividerColour or 0x5A4934FF)
     local title

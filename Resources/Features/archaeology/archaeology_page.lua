@@ -54,6 +54,10 @@ function ArchaeologyPage:SetMode(modeID, force)
                 data = mode.data,
                 selected = self.state.selectedMysterySite,
                 getValue = GameData.TrackingValue,
+                deferCollections = self.options.deferCollections,
+                progress = self.options.progress,
+                isVisible = self.options.isVisible,
+                readValue = function(reference) return self.options.progress:ReadValueNow(reference) end,
                 onStateChange = function(selected)
                     self.state.selectedMysterySite = selected
                     self.options.saveState()
@@ -66,6 +70,10 @@ function ArchaeologyPage:SetMode(modeID, force)
                 records = mode.data.records,
                 selected = self.state.selectedCollector,
                 getValue = GameData.TrackingValue,
+                deferCollections = self.options.deferCollections,
+                progress = self.options.progress,
+                isVisible = self.options.isVisible,
+                readValue = function(reference) return self.options.progress:ReadValueNow(reference) end,
                 emptyMessage = "No collector records were supplied by the current manifest.",
                 onStateChange = function(selected)
                     self.state.selectedCollector = selected
@@ -78,6 +86,10 @@ function ArchaeologyPage:SetMode(modeID, force)
                 height = page.height,
                 records = mode.data.records,
                 selected = self.state.selectedRelicCategory,
+                deferCollections = self.options.deferCollections,
+                progress = self.options.progress,
+                isVisible = self.options.isVisible,
+                readValue = function(reference) return self.options.progress:ReadValueNow(reference) end,
                 onStateChange = function(selected)
                     self.state.selectedRelicCategory = selected
                     self.options.saveState()

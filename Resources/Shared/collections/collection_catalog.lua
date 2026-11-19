@@ -61,6 +61,13 @@ local function objectName(object)
     return tostring(property(object, "configName") or "Collection item")
 end
 
+-- Magister journals share a sequential counter with a separate threshold per book.
+local function minimumProgress(object)
+    local name = property(object, "configName")
+    if type(name) ~= "string" then return nil end
+    return tonumber(string.match(name, "^MENAPHOS_SLAYER_LORE_BOOK_([1-5])$"))
+end
+
 -- Add a unique catalog row
 local function addRow(result, seen, row, lookup, yieldWork)
     if row == nil then return end
@@ -80,6 +87,7 @@ local function addRow(result, seen, row, lookup, yieldWork)
         local trackingVariable = objectVariable(object, fallback[index], lookup.renamed)
         log[index] = {
             v = trackingVariable,
+            min = minimumProgress(object),
             label = label,
             objectID = tonumber(property(object, "id")),
         }
@@ -100,6 +108,7 @@ local function addObjects(result, name, objectIDs, lookup, yieldWork)
             local trackingVariable = objectVariable(object, fallback[index], lookup.renamed)
             log[#log + 1] = {
                 v = trackingVariable,
+                min = minimumProgress(object),
                 label = label,
                 objectID = objectID,
             }

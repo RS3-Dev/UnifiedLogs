@@ -4,7 +4,7 @@ local CollectionFeature = {}
 -- Add collection loading and page creation to a feature
 function CollectionFeature.Define(feature)
     feature.groups = feature.groups or {}
-    feature.collection.groupAll = true
+    if feature.collection.groupAll == nil then feature.collection.groupAll = true end
 
     -- Load groups from a catalogue and logs scoped to the feature
     if feature.LoadData == nil then

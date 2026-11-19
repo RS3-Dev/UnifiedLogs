@@ -7,6 +7,7 @@ local ItemGrid = require("Resources/Shared/ui/item_grid")
 local CollectionGroupPanel = require("Resources/Shared/ui/collection_group_panel")
 local ProgressStyle = require("Resources/Shared/ui/progress_style")
 local ScrollableItemList = require("Resources/Shared/ui/scrollable_item_list")
+local Preparer = require("Resources/Shared/collections/collection_preparer")
 
 local BossDropsTab = {}
 BossDropsTab.__index = BossDropsTab
@@ -104,6 +105,7 @@ function BossDropsTab.new(parent, options)
 end
 
 function BossDropsTab:DestroyContent()
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
     if self.itemLedger ~= nil then self.itemLedger:Destroy() end
     self.itemLedger = nil
     for _, grid in ipairs(self.grids) do
@@ -230,8 +232,8 @@ end
 -- Rebuild boss drop rows
 function BossDropsTab:Rebuild(categoryName, groups, preserveScroll)
     local aggregate = categoryName == (self.options.aggregateLabel or "All bosses")
+    if self.options.deferCollections then self.progress.viewport = aggregate end
     local previousY = preserveScroll and self.scroll ~= nil and self.scroll.scrollY or 0
-    self:DestroyContent()
     self.heading.content = aggregate and (self.options.aggregateHeading or "All boss drops")
         or categoryName .. " " .. (self.options.itemLabel or "drops")
     local summaries = {}
@@ -244,6 +246,10 @@ function BossDropsTab:Rebuild(categoryName, groups, preserveScroll)
         end
     end
     self.killCountText.content = table.concat(summaries, "  |  ")
+    if aggregate and self.options.deferCollections then
+        self:RebuildDeferred(groups, preserveScroll)
+        return
+    end
     local preparedGroups, collectedTotal, itemTotal = {}, 0, 0
     for _, group in ipairs(groups) do
         local prepared = self:PrepareGroup(group, aggregate)
@@ -254,8 +260,14 @@ function BossDropsTab:Rebuild(categoryName, groups, preserveScroll)
     self.summary.content = tostring(collectedTotal) .. " / " .. tostring(itemTotal)
     self.summary.hidden = not aggregate
 
+    if aggregate and self.itemLedger ~= nil then
+        self.itemLedger:Update(preparedGroups, { preserveScroll = preserveScroll })
+        return
+    end
+    self:DestroyContent()
     local scrollHeight = math.max(120, self.root.height - HEADER_HEIGHT)
     self.scroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         x = 0,
         y = HEADER_HEIGHT,
         width = self.root.width,
@@ -367,6 +379,44 @@ function BossDropsTab:Rebuild(categoryName, groups, preserveScroll)
     end
     self.scroll:SetContentHeight(math.max(scrollHeight, y))
     if preserveScroll then self.scroll:SetScrollPosition(previousY) end
+end
+
+-- Build aggregate row geometry immediately and resolve only bounded item batches.
+function BossDropsTab:RebuildDeferred(groups, preserveScroll)
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
+    if self.itemLedger == nil then
+        self:DestroyContent()
+        local height = math.max(120, self.root.height - HEADER_HEIGHT)
+        self.scroll = prettyui.SimpleView.new(self.root, { categoryID = "auto", x = 0, y = HEADER_HEIGHT,
+            width = self.root.width, height = height, contentHeight = height, scrollStep = SLOT_SIZE + SLOT_GAP })
+        self.itemLedger = ScrollableItemList.new(self.scroll, {
+            rowWidth = math.max(300, self.root.width - 18), quantityMode = QUANTITY_MODE,
+            emptyText = "No collection-log data matched this category.",
+        })
+    end
+    self.objectCache = self.options.objectCache or self.objectCache or {}
+    self.preparer = Preparer.Collection({
+        progress = self.progress, objectCache = self.objectCache, isVisible = self.options.isVisible,
+    }, function(preparer)
+        self:RefreshDeferredTotals()
+        self.itemLedger:Refresh()
+        if preparer.pending == 0 and not preparer.notifiedComplete and self.options.onPrepared then
+            preparer.notifiedComplete = true
+            self.options.onPrepared(preparer)
+        end
+    end)
+    local prepared = {}
+    for _, group in ipairs(groups) do prepared[#prepared + 1] = self.preparer:AddGroup(group.name, group.items) end
+    self.summary.hidden = false
+    self.itemLedger:Update(prepared, { preserveScroll = preserveScroll })
+    self:RefreshDeferredTotals()
+    self.preparer:Start()
+end
+
+function BossDropsTab:RefreshDeferredTotals()
+    local complete, total = 0, 0
+    for _, group in ipairs(self.preparer.groups) do complete, total = complete + group.collected, total + group.total end
+    self.summary.content = self.preparer.pending > 0 and "Loading..." or tostring(complete) .. " / " .. tostring(total)
 end
 
 function BossDropsTab:Destroy()

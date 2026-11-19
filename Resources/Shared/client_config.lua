@@ -5,7 +5,8 @@ local ClientConfig = {}
 function ClientConfig.Read(object, key)
     if object == nil then return nil end
     local ok, value = pcall(function() return object[key] end)
-    return ok and value or nil
+    if ok then return value end
+    return nil
 end
 
 -- Resolve a client config by name

@@ -66,6 +66,9 @@ function Feature.CreatePage(parent, context)
         height = context.height,
         section = Feature,
         state = context.state,
+        deferCollections = context.deferCollections,
+        isVisible = context.isVisible,
+        progress = context.progress,
         saveState = context.saveState,
         otherOptions = require("Resources/Shared/collections/collection_log_page").Options(other, context),
     })

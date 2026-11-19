@@ -123,7 +123,8 @@ local function masteryTasks(sets, yieldWork)
     return tasks
 end
 
-function CombatAchievementCatalog.Build(yieldWork)
+function CombatAchievementCatalog.Build(yieldWork, options)
+    options = options or {}
     yieldWork = yieldWork or function() end
     local descriptions = Descriptions.Current()
     local router = namedEnum("CHEEVO_COMBAT_SUBCATEGORY_TO_DISPLAY_LIST")
@@ -162,7 +163,8 @@ function CombatAchievementCatalog.Build(yieldWork)
         local categoryID = categoryByBoss[bossID] or bossID
         local category = CATEGORY_NAME_OVERRIDES[categoryID]
             or label(namesByID[categoryID]) or label(namesByID[bossID]) or "Unknown"
-        local progress = tonumber(read(achievement, "progress"))
+        local progress
+        if not options.deferState then progress = tonumber(read(achievement, "progress")) end
         local complete
         if progress ~= nil then complete = progress == -2 or progress >= 10000 end
         records[#records + 1] = {
@@ -172,7 +174,7 @@ function CombatAchievementCatalog.Build(yieldWork)
             progress = progress,
             complete = complete,
             name = tostring(read(achievement, "name") or "Unknown achievement"),
-            description = Descriptions.Get(achievement) or AchievementText.Description(achievement),
+            description = (not options.deferState and Descriptions.Get(achievement)) or AchievementText.Description(achievement),
             tier = string.upper(string.sub(task.tier, 1, 1)) .. string.lower(string.sub(task.tier, 2)),
             tierOrder = TIER_ORDER[task.tier],
             bossID = bossID,
@@ -192,7 +194,7 @@ function CombatAchievementCatalog.Build(yieldWork)
         end
         return left.id < right.id
     end)
-    if Descriptions.Current() ~= descriptions then return CombatAchievementCatalog.Build(yieldWork) end
+    if Descriptions.Current() ~= descriptions then return CombatAchievementCatalog.Build(yieldWork, options) end
     if #records == 0 then error("combat achievement client enums contained no mastery tasks") end
     return records
 end

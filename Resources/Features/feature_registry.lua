@@ -2,16 +2,20 @@
 local ordered = {
     (require("Resources/Features/bosses/boss_feature")),
     (require("Resources/Features/experience/experience_feature")),
-    (require("Resources/Features/quests/quest_feature")),
+    (require("Resources/Features/misc/minigames/minigames_feature")),
     (require("Resources/Features/achievements/achievements_feature")),
     (require("Resources/Features/archaeology/archaeology_feature")),
     (require("Resources/Features/clues/clue_feature")),
     (require("Resources/Features/misc/misc_feature")),
 }
 local hidden = {
+    (require("Resources/Features/quests/quest_feature")),
     (require("Resources/Features/bosses/abilities/abilities_feature")),
     (require("Resources/Features/misc/thieving/thieving_feature")),
     (require("Resources/Features/slayer/slayer_feature")),
+    (require("Resources/Features/slayer/souls_feature")),
+    (require("Resources/Features/misc/totems/totems_feature")),
+    (require("Resources/Features/misc/menaphos/menaphos_feature")),
     (require("Resources/Features/misc/player_owned_farms/farm_feature")),
     (require("Resources/Features/misc/minigames/minigames_feature")),
     (require("Resources/Features/misc/skilling_outfits/skilling_outfits_feature")),

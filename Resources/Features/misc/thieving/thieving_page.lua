@@ -18,6 +18,24 @@ function ThievingPage.new(parent, options)
         progress = options.progress, showPersonalBests = options.showPersonalBests,
         recordHeading = "HEIST", itemLabel = "rewards",
         aggregateLabel = "All", aggregateHeading = "All thieving rewards",
+        deferCollections = options.deferCollections, isVisible = options.isVisible,
+        onPrepared = function(preparer)
+            if self.sidebar == nil then return end
+            self.sidebar:UpdateCompletions(function(name)
+                local total, complete = 0, true
+                for _, group in ipairs(self.groups) do
+                    if name == "All" or name == group.name then
+                        for _, section in ipairs(group.sections or { group }) do
+                            for _, item in ipairs(section.items or {}) do
+                                total = total + 1
+                                if preparer.complete[item] ~= true then complete = false end
+                            end
+                        end
+                    end
+                end
+                return total > 0 and complete
+            end)
+        end,
         emptyItemsText = "No collection-log rewards are mapped for this activity.",
     })
     local selected = options.selected
@@ -46,14 +64,22 @@ function ThievingPage:Select(name, preserveScroll)
         end
         entries[#entries + 1] = { id = group.name, label = group.name,
             complete = ProgressStyle.greenLogEnabled and CollectionEntries.IsComplete(items, {
-                getValue = function(variable) return self.options.progress:GetValue(variable) end,
+                getValue = function(variable)
+                    if self.options.deferCollections and name == "All" then return self.options.progress:PeekValue(variable) end
+                    return self.options.progress:GetValue(variable)
+                end,
+                peekOnly = self.options.deferCollections and name == "All",
                 isCollected = function(item, value) return self.options.progress:IsCollected(item, value) end,
             }) }
         if group.name == name then selectedGroup = group end
     end
     table.insert(entries, 1, { id = "All", label = "All",
         complete = ProgressStyle.greenLogEnabled and CollectionEntries.IsComplete(allItems, {
-            getValue = function(variable) return self.options.progress:GetValue(variable) end,
+            getValue = function(variable)
+                if self.options.deferCollections and name == "All" then return self.options.progress:PeekValue(variable) end
+                return self.options.progress:GetValue(variable)
+            end,
+            peekOnly = self.options.deferCollections and name == "All",
             isCollected = function(item, value) return self.options.progress:IsCollected(item, value) end,
         }) })
     self.sidebar = SidebarList.new(self.root, {

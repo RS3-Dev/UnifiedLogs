@@ -1,6 +1,7 @@
 -- Render the sidebar list
 local UI = require("Resources/Shared/ui/components")
 local ProgressStyle = require("Resources/Shared/ui/progress_style")
+local VirtualSidebar = require("Resources/Shared/ui/virtual_sidebar")
 
 local SidebarList = {}
 SidebarList.__index = SidebarList
@@ -30,6 +31,7 @@ local function normalizedEntry(value, index, selectedID)
         selectedColour = ProgressStyle.Green(source.complete, SidebarList.ROW_SELECTED, ProgressStyle.GREEN_HEADER),
         textColour = ProgressStyle.Green(source.complete, source.textColour or SidebarList.TEXT, 0xF2C66DFF),
         icon = source.icon,
+        trailingIcon = source.trailingIcon,
     },
         source
 end
@@ -52,7 +54,7 @@ function SidebarList.new(parent, options)
     self.host = UI.RootLayer(parent)
     self.host:SetPos(options.x or 0, options.y or 0)
     self.host:SetSize(options.width, options.height)
-    local ok, list = pcall(prettyui.List.new, self.host, {
+    local ok, list = pcall(VirtualSidebar.new, self.host, {
         categoryID = "auto",
         x = 0,
         y = 0,
@@ -66,6 +68,7 @@ function SidebarList.new(parent, options)
         borderColour = options.borderColour or SidebarList.BORDER,
         selectedColour = SidebarList.ROW_SELECTED,
         entries = entries,
+        onRowsChanged = function() self:Decorate() end,
         _onEntryClick = function(_, entryID, selected)
             self:Decorate()
             if type(options.onSelect) == "function" then
@@ -93,27 +96,29 @@ function SidebarList:Decorate()
     end
     if self.list == nil then return end
     for _, row in ipairs(self.list.rows or {}) do
-        UI.RemoveCursor(row.root)
-        local colour = nil
-        if type(self.options.frameColourForEntry) == "function" then
-            colour = self.options.frameColourForEntry(
-                row.entry.id,
-                row.entry.selected,
-                self.sources[row.entry.id]
-            )
-        end
-        if colour == nil and row.entry.selected then colour = SidebarList.SELECTED_BORDER end
-        if colour ~= nil then
-            local edges = self.frameByRow[row.root]
-            if edges == nil then
-                edges = UI.Frame(row.root, 0, 0, row.root.width,
-                    row.height or SidebarList.ROW_HEIGHT, colour)
-                self.frameByRow[row.root] = edges
-                self.frames[#self.frames + 1] = edges
+        if row.entry ~= nil then
+            UI.RemoveCursor(row.root)
+            local colour = nil
+            if type(self.options.frameColourForEntry) == "function" then
+                colour = self.options.frameColourForEntry(
+                    row.entry.id,
+                    row.entry.selected,
+                    self.sources[row.entry.id]
+                )
             end
-            for _, edge in ipairs(edges) do
-                edge.rgba = colour
-                edge.hidden = false
+            if colour == nil and row.entry.selected then colour = SidebarList.SELECTED_BORDER end
+            if colour ~= nil then
+                local edges = self.frameByRow[row.root]
+                if edges == nil then
+                    edges = UI.Frame(row.root, 0, 0, row.root.width,
+                        row.height or SidebarList.ROW_HEIGHT, colour)
+                    self.frameByRow[row.root] = edges
+                    self.frames[#self.frames + 1] = edges
+                end
+                for _, edge in ipairs(edges) do
+                    edge.rgba = colour
+                    edge.hidden = false
+                end
             end
         end
     end
@@ -122,12 +127,26 @@ end
 -- Update selection without recreating every list row.
 function SidebarList:Select(entryID)
     for _, entry in ipairs(self.list.entries or {}) do
-        self.list:SetSelected(entry.id, entry.id == entryID, false)
+        if entry.selected ~= (entry.id == entryID) then
+            self.list:SetSelected(entry.id, entry.id == entryID, false)
+        end
     end
     self:Decorate()
 end
 
 function SidebarList:GetScrollPosition() return self.list ~= nil and self.list.scrollY or 0 end
+
+-- Update completion colours without rebuilding the native sidebar.
+function SidebarList:UpdateCompletions(isComplete)
+    for index, entry in ipairs(self.list.entries) do
+        local source = self.sources[entry.id]
+        source.complete = isComplete(entry.id)
+        local updated = normalizedEntry(source, index, entry.selected and entry.id or nil)
+        entry.backgroundColour, entry.hoverColour = updated.backgroundColour, updated.hoverColour
+        entry.selectedColour, entry.textColour = updated.selectedColour, updated.textColour
+    end
+    self.list:RefreshStyles()
+end
 
 function SidebarList:SetScrollPosition(value)
     if self.list ~= nil then self.list:SetScrollPosition(value or 0) end

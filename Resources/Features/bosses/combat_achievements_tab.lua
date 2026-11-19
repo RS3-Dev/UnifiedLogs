@@ -108,6 +108,7 @@ function CombatAchievementsTab:BuildHeader()
     })
     local ComboBox = prettyui.OrderedComboBox or prettyui.ComboBox
     self.tierCombo = ComboBox.new(self.root, {
+        categoryID = "auto",
         x = 12,
         y = 52,
         width = 130,
@@ -125,6 +126,7 @@ function CombatAchievementsTab:BuildHeader()
         colour = 0xF2C66DFF,
     })
     self.statusCombo = ComboBox.new(self.root, {
+        categoryID = "auto",
         x = 154,
         y = 52,
         width = 140,
@@ -142,6 +144,7 @@ function CombatAchievementsTab:BuildHeader()
         colour = 0xF2C66DFF,
     })
     self.searchField = prettyui.TextField.new(self.root, {
+        categoryID = "auto",
         x = 306,
         y = 52,
         width = math.max(130, width - 318),
@@ -258,6 +261,7 @@ function CombatAchievementsTab:Rebuild(preserveScroll)
             lineHeight = LINE_HEIGHT,
             nameWidth = NAME_WIDTH,
             onToggle = self.options.onToggleTier,
+            onVisibleAchievements = self.options.onVisibleAchievements,
             fonts = {
                 header = id.Font.CINZEL_18PT_BOLD,
                 marker = id.Font.MUSEO_SANS_13PT_BOLD,
@@ -278,17 +282,19 @@ function CombatAchievementsTab:Rebuild(preserveScroll)
     })
 
     -- Completion totals cover the selected category regardless of list filters.
-    local categoryTotal, categoryComplete = 0, 0
+    local categoryTotal, categoryComplete, pending = 0, 0, false
     local categoryID = self.model:PageCategoryID(self.state.selectedCategoryID)
     for _, achievement in ipairs(self.achievements) do
         if
-            categoryID == Settings.ALL_CATEGORIES_ID or achievement.categoryID == categoryID
+            self.model:MatchesCategory(achievement, categoryID)
         then
             categoryTotal = categoryTotal + 1
+            if achievement.complete == nil then pending = true end
             if achievement.complete == true then categoryComplete = categoryComplete + 1 end
         end
     end
     self.summary.content = tostring(categoryComplete) .. " / " .. tostring(categoryTotal)
+    if pending then self.summary.content = "Loading..." end
 end
 
 function CombatAchievementsTab:DestroyContent()

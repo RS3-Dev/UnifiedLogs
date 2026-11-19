@@ -59,8 +59,26 @@ function Feature.LoadData(_, yieldWork)
         end
     end
     if require("Resources/Features/bosses/boss_patch").Current() ~= patch then
-        return Feature.LoadData(nil, yieldWork)
+        -- Keep the thieving page wiring in one place for every navigation host.
+function Feature.CreatePage(parent, context)
+    return require("Resources/Features/misc/thieving/thieving_page").new(parent, {
+        width = context.width, height = context.height, groups = Feature.groups,
+        progress = context.progress, deferCollections = context.deferCollections, isVisible = context.isVisible,
+        selected = context.state.selectedThievingGroup, showPersonalBests = context.state.showPersonalBests,
+        onSelect = function(value) context.state.selectedThievingGroup = value; context.saveState() end,
+    })
+end
+return Feature.LoadData(nil, yieldWork)
     end
 end
 
+-- Keep the thieving page wiring in one place for every navigation host.
+function Feature.CreatePage(parent, context)
+    return require("Resources/Features/misc/thieving/thieving_page").new(parent, {
+        width = context.width, height = context.height, groups = Feature.groups,
+        progress = context.progress, deferCollections = context.deferCollections, isVisible = context.isVisible,
+        selected = context.state.selectedThievingGroup, showPersonalBests = context.state.showPersonalBests,
+        onSelect = function(value) context.state.selectedThievingGroup = value; context.saveState() end,
+    })
+end
 return Feature

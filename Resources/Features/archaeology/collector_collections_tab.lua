@@ -7,6 +7,7 @@ local SidebarLayout = require("Resources/Shared/ui/sidebar_layout")
 local CollectorCollectionEntries = require("Resources/Features/archaeology/collector_collection_entries")
 local CollectorCollectionList = require("Resources/Features/archaeology/collector_collection_list")
 local ProgressStyle = require("Resources/Shared/ui/progress_style")
+local Preparer = require("Resources/Shared/collections/collection_preparer")
 
 local SIDEBAR_WIDTH = SidebarLayout.SIDEBAR_WIDTH
 
@@ -22,6 +23,14 @@ function CollectorCollectionsTab.new(parent, options)
     self.ledger = CollectorCollectionList.new(self.workspace, {
         y = 46,
         emptyMessage = options.emptyMessage,
+        onVisibleRecords = function(records)
+            if self.preparer == nil then return end
+            self.preparer.visible = {}
+            for _, record in ipairs(records) do
+                local job = self.jobsByRecord[record]
+                if job then self.preparer.visible[#self.preparer.visible + 1] = job end
+            end
+        end,
     })
     self:RebuildSidebar(false)
     self:RebuildRows(false)
@@ -49,7 +58,11 @@ function CollectorCollectionsTab:RebuildSidebar(preserveScroll)
     end
     if ProgressStyle.greenLogEnabled then
         for index, name in ipairs(entries) do
-            local data = CollectorCollectionEntries.Prepare(self.records, name, self.options.getValue)
+            local reader = self.options.getValue
+            if self.options.deferCollections and self.selected == CollectorCollectionEntries.ALL_COLLECTORS then
+                reader = function(reference) return self.options.progress:PeekValue(reference) end
+            end
+            local data = CollectorCollectionEntries.Prepare(self.records, name, reader)
             entries[index] = { id = name, label = name, complete = data.total > 0 and data.complete == data.total }
         end
     end
@@ -73,6 +86,12 @@ function CollectorCollectionsTab:RebuildSidebar(preserveScroll)
 end
 
 function CollectorCollectionsTab:RebuildRows(preserveScroll)
+    if self.options.deferCollections and self.selected == CollectorCollectionEntries.ALL_COLLECTORS then
+        self:RebuildDeferred(preserveScroll)
+        return
+    end
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
+    if self.options.progress then self.options.progress.viewport = false end
     if ProgressStyle.greenLogEnabled then self:RebuildSidebar(true) end
     local data =
         CollectorCollectionEntries.Prepare(self.records, self.selected, self.options.getValue)
@@ -84,7 +103,52 @@ function CollectorCollectionsTab:RebuildRows(preserveScroll)
     self.ledger:SetData(data, preserveScroll)
 end
 
+-- Keep collection metadata while completion variables load around the viewport.
+function CollectorCollectionsTab:RebuildDeferred(preserveScroll)
+    if self.preparer then self.preparer:Stop() end
+    self.options.progress.viewport = true
+    self.heading.content = "ALL COLLECTIONS"
+    self.collectorData = CollectorCollectionEntries.Prepare(self.records, self.selected, function() return nil end)
+    self.jobsByRecord = {}
+    self.preparer = Preparer.new({
+        isVisible = self.options.isVisible,
+        prepareEntry = function(record)
+            return {}, CollectorCollectionEntries.IsComplete(self.options.readValue(record.variableName))
+        end,
+        onChanged = function() self:RefreshDeferredProgress() end,
+    })
+    for _, group in ipairs(self.collectorData.groups) do
+        local records = {}
+        for _, entry in ipairs(group.entries) do records[#records + 1] = entry.record end
+        local prepared = self.preparer:AddGroup(group.name, records)
+        for index, record in ipairs(records) do self.jobsByRecord[record] = prepared.jobs[index] end
+    end
+    self.summary.content = "Loading..."
+    self.ledger:SetData(self.collectorData, preserveScroll)
+    self:RefreshDeferredProgress()
+    self.preparer:Start()
+end
+
+function CollectorCollectionsTab:RefreshDeferredProgress()
+    local complete = 0
+    for _, group in ipairs(self.collectorData.groups) do
+        group.complete, group.pending = 0, false
+        for _, entry in ipairs(group.entries) do
+            local job = self.jobsByRecord[entry.record]
+            entry.complete = self.preparer.complete[entry.record] == true
+            if entry.complete then group.complete = group.complete + 1; complete = complete + 1 end
+            if not job.loaded then group.pending = true end
+        end
+    end
+    self.summary.content = self.preparer.pending > 0 and "Loading..."
+        or tostring(complete) .. "/" .. tostring(self.collectorData.total)
+    self.ledger.renderedRangeKey = nil
+    self.ledger:Refresh()
+    if self.preparer.pending == 0 and ProgressStyle.greenLogEnabled then self:RebuildSidebar(true) end
+end
+
 function CollectorCollectionsTab:Destroy()
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
     if self.ledger ~= nil then self.ledger:Destroy() end
     self.ledger = nil
     if self.sidebarList ~= nil then self.sidebarList:Destroy() end

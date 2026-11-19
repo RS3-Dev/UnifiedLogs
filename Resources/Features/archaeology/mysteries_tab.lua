@@ -5,6 +5,8 @@ local SidebarList = require("Resources/Shared/ui/sidebar_list")
 local ProgressStyle = require("Resources/Shared/ui/progress_style")
 local CollectionGroupPanel = require("Resources/Shared/ui/collection_group_panel")
 local SidebarLayout = require("Resources/Shared/ui/sidebar_layout")
+local Preparer = require("Resources/Shared/collections/collection_preparer")
+local VirtualList = require("Resources/Features/bosses/combat_achievement_list")
 
 local MysteriesTab = {}
 MysteriesTab.__index = MysteriesTab
@@ -61,7 +63,13 @@ function MysteriesTab:BuildSidebar()
                 if name == ALL_SITES or name == group.name then
                     for _, mystery in ipairs(group.mysteries or {}) do
                         total = total + 1
-                        if not GameData.MysteryBitIsSet(self.options.getValue(mystery.variable), mystery.bit) then
+                        local collected
+                        if self.options.deferCollections and self.selected == ALL_SITES then
+                            collected = self.preparer and self.preparer.complete[mystery] == true
+                        else
+                            collected = GameData.MysteryBitIsSet(self.options.getValue(mystery.variable), mystery.bit)
+                        end
+                        if not collected then
                             complete = false
                         end
                     end
@@ -90,6 +98,15 @@ end
 
 -- Rebuild mystery groups
 function MysteriesTab:Rebuild(preserveScroll)
+    if self.options.deferCollections and self.options.progress then
+        self.options.progress.viewport = self.selected == ALL_SITES
+    end
+    if self.options.deferCollections and self.selected == ALL_SITES then
+        self:RebuildDeferred(preserveScroll)
+        return
+    end
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
+    if self.virtualList then self.virtualList:Destroy(); self.virtualList, self.scroll = nil, nil end
     if ProgressStyle.greenLogEnabled then self:BuildSidebar() end
     local previousY = preserveScroll and self.scroll ~= nil and self.scroll.scrollY or 0
     if self.scroll ~= nil then self.scroll:Destroy() end
@@ -125,6 +142,7 @@ function MysteriesTab:Rebuild(preserveScroll)
         if showGroupHeaders then requestedHeight = requestedHeight + GROUP_HEIGHT end
     end
     self.scroll = prettyui.SimpleView.new(self.workspace, {
+        categoryID = "auto",
         x = 0,
         y = scrollY,
         width = self.workspace.width,
@@ -206,7 +224,84 @@ function MysteriesTab:Rebuild(preserveScroll)
     if preserveScroll then self.scroll:SetScrollPosition(previousY) end
 end
 
+-- Virtualize aggregate mystery rows and read shared varbits in bounded jobs.
+function MysteriesTab:RebuildDeferred(preserveScroll)
+    if self.preparer then self.preparer:Stop() end
+    self.heading.content = "ALL MYSTERIES"
+    local height = math.max(120, self.root.height - 46)
+    local width = self.workspace.width
+    if self.virtualList == nil then
+        if self.scroll then self.scroll:Destroy() end
+        self.virtualList = VirtualList.new(self.workspace, prettyui, {
+            x = 0, y = 46, width = width, height = height, rowHeight = ROW_HEIGHT,
+            nameWidth = math.max(100, width - 48),
+            fonts = { header = id.Font.CINZEL_18PT_BOLD, marker = id.Font.MUSEO_SANS_13PT_BOLD,
+                name = id.Font.MUSEO_SANS_13PT_BOLD, body = id.Font.MUSEO_SANS_13PT_REGULAR },
+            onVisibleAchievements = function(records)
+                if self.preparer == nil then return end
+                self.preparer.visible = {}
+                for _, record in ipairs(records) do
+                    self.preparer.visible[#self.preparer.visible + 1] = record.job
+                end
+            end,
+        })
+        self.scroll = self.virtualList.scroll
+    end
+    self.preparer = Preparer.new({
+        isVisible = self.options.isVisible,
+        prepareEntry = function(mystery)
+            local value = (self.options.readValue or self.options.getValue)(mystery.variable)
+            return {}, GameData.MysteryBitIsSet(value, mystery.bit)
+        end,
+        onChanged = function() self:RefreshDeferredRows() end,
+    })
+    self.deferredRows = {}
+    local y = 0
+    for index, source in ipairs(self:SelectedGroups()) do
+        if index > 1 then y = y + GROUP_GAP end
+        local group = self.preparer:AddGroup(source.name, source.mysteries or {})
+        self.deferredRows[#self.deferredRows + 1] = { kind = "header", group = group.name,
+            preparedGroup = group, y = y, height = GROUP_HEIGHT, count = group.total,
+            complete = 0, pending = group.total > 0, groupStart = true, hideToggle = true }
+        y = y + GROUP_HEIGHT
+        for entryIndex, mystery in ipairs(group.entries) do
+            self.deferredRows[#self.deferredRows + 1] = {
+                kind = "achievement", y = y, height = ROW_HEIGHT, preparedGroup = group,
+                achievement = { name = mystery.name, description = "", job = group.jobs[entryIndex] },
+                nameLineValues = { mystery.name }, descriptionLineValues = {},
+                groupEnd = entryIndex == group.total,
+            }
+            y = y + ROW_HEIGHT
+        end
+    end
+    self.virtualList:Update({ rows = self.deferredRows, width = width, height = height,
+        x = 0, y = 46, rowWidth = math.max(300, self.scroll.content.width),
+        contentHeight = y, preserveScroll = preserveScroll })
+    self:RefreshDeferredRows()
+    self.preparer:Start()
+end
+
+function MysteriesTab:RefreshDeferredRows()
+    local complete, total = 0, 0
+    for _, group in ipairs(self.preparer.groups) do complete, total = complete + group.collected, total + group.total end
+    self.summary.content = self.preparer.pending > 0 and "Loading..." or tostring(complete) .. "/" .. tostring(total)
+    for _, row in ipairs(self.deferredRows) do
+        if row.kind == "header" then
+            row.complete, row.pending = row.preparedGroup.collected, row.preparedGroup.loadedCount < row.preparedGroup.total
+        else
+            local job = row.achievement.job
+            if job.loaded then row.achievement.complete = job.group.states[job.index]
+            else row.achievement.complete = nil end
+            row.complete = row.achievement.complete == true
+        end
+    end
+    self.virtualList:Refresh()
+    if self.preparer.pending == 0 and ProgressStyle.greenLogEnabled then self:BuildSidebar() end
+end
+
 function MysteriesTab:Destroy()
+    if self.preparer then self.preparer:Stop(); self.preparer = nil end
+    if self.virtualList then self.virtualList:Destroy(); self.virtualList, self.scroll = nil, nil end
     if self.sidebarList ~= nil then self.sidebarList:Destroy() end
     self.sidebarList = nil
     if self.scroll ~= nil then self.scroll:Destroy() end

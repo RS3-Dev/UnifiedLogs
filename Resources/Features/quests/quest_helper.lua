@@ -8,6 +8,8 @@ local function api()
         and type(value.openQuest) == "function" then return value end
 end
 
+function QuestHelper.IsAvailable() return api() ~= nil end
+
 function QuestHelper.AvailableQuests()
     local dependency = api()
     if dependency == nil then return {} end

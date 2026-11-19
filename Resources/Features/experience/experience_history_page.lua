@@ -1,6 +1,6 @@
 -- Render the experience history page
 local UI = require("Resources/Shared/ui/components")
-local LazyTabs = require("Resources/Shared/ui/lazy_tabs")
+local LazyTabs = require("Resources/Shared/ui/sidebar_pages")
 local SidebarLayout = require("Resources/Shared/ui/sidebar_layout")
 local SidebarList = require("Resources/Shared/ui/sidebar_list")
 local DailyExperienceList = require("Resources/Features/experience/daily_experience_list")
@@ -90,6 +90,7 @@ function ExperienceHistoryPage.new(parent, options)
             self:SetMode(mode, false)
         end
     )
+    self.tabHost.shell.sidebarTitle.content = "XP HISTORY"
     self.tabs = self.tabHost.tabs
     self:SetMode(self.state.xpMode, true)
     self.isBuilding = false
@@ -295,14 +296,14 @@ function ExperienceHistoryPage:BuildDanger(parent)
     })
     self.deleteHistoryButton = self:AddControl(prettyui.SimpleButton.new(parent,
         "Delete all XP history", function() self:DeleteHistoryClicked() end,
-        { x = math.floor((parent.width - 200) / 2), y = y + 130,
+        { categoryID = "auto", x = math.floor((parent.width - 200) / 2), y = y + 130,
             width = 200, height = 32, colour = 0xDD7568FF, toggleable = false }))
     self.cancelDeleteButton = self:AddControl(prettyui.SimpleButton.new(parent,
         "Cancel", function()
             self:ResetDeleteConfirmation()
             self.deleteHistoryStatus.content = "Deletion cancelled."
         end,
-        { x = math.floor((parent.width - 316) / 2) + 216, y = y + 130,
+        { categoryID = "auto", x = math.floor((parent.width - 316) / 2) + 216, y = y + 130,
             width = 100, height = 32, toggleable = false }))
     self.cancelDeleteButton.root.hidden = true
     self.deleteHistoryStatus = UI.Text(parent, "", x, y + 178, width, 66, {
@@ -331,6 +332,7 @@ function ExperienceHistoryPage:BuildToolbar(parent, total)
             DateTimeFormat.Period(self.startDate, self.endDate, self.dateFormat),
             function(button) self:ToggleCalendar(parent, button) end,
             {
+                categoryID = "auto",
                 x = 12,
                 y = 7,
                 width = dateWidth,
@@ -640,6 +642,7 @@ function ExperienceHistoryPage:RebuildSkillGraph(preserveScroll)
     local contentHeight = math.max(viewportHeight, tableY + rowHeight * (#records + 1) + 8)
     if self.skillScroll == nil then
         self.skillScroll = prettyui.SimpleView.new(workspace, {
+            categoryID = "auto",
             x = 0,
             y = TOOLBAR_HEIGHT,
             width = workspace.width,

@@ -30,6 +30,7 @@ function FurniturePlansTab.new(parent, options)
         alignHorizontal = ui.AlignMode.BOTTOMRIGHT,
     })
     self.scroll = prettyui.SimpleView.new(self.root, {
+        categoryID = "auto",
         y = 38, width = options.width, height = math.max(120, options.height - 38),
         contentHeight = 120, scrollStep = 44,
     })

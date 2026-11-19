@@ -129,7 +129,7 @@ function CombatAchievementList:_RenderSlot(slot, row)
         })
         UI.BindText(
             slot.progress,
-            tostring(row.complete or 0) .. " / " .. tostring(row.count),
+            row.pending and "Loading..." or tostring(row.complete or 0) .. " / " .. tostring(row.count),
             self.rowWidth - 156,
             y,
             96,
@@ -168,6 +168,7 @@ function CombatAchievementList:_RenderSlot(slot, row)
                 alignVertical = ui.AlignMode.CENTRE,
             }
         )
+        if row.hideToggle then slot.marker.hidden = true end
         setVisible(slot.secondary, false)
         UI.BindRectangle(slot.borderTop, 0, y, self.rowWidth, 1, ProgressStyle.GROUP_BORDER)
         UI.BindRectangle(slot.borderLeft, 0, y, 1, row.height, ProgressStyle.GROUP_BORDER)
@@ -271,6 +272,7 @@ function CombatAchievementList:_RenderSlot(slot, row)
         y + math.floor((row.height - 14) / 2)
     )
     ProgressStyle.SetCompletionMark(slot.completionMark, row.complete)
+    if row.achievement.complete == nil then slot.completionMark.hidden = true end
     slot.completionMark:MoveToFront()
     if row.complete then
         UI.BindRectangle(
@@ -327,11 +329,19 @@ function CombatAchievementList:Refresh()
             self:_HideSlot(slot)
         end
     end
+    if self.onVisibleAchievements then
+        local records = {}
+        for _, row in ipairs(visible) do
+            if row.achievement then records[#records + 1] = row.achievement end
+        end
+        self.onVisibleAchievements(records)
+    end
 end
 
 function CombatAchievementList.new(parent, prettyui, options)
     local self = setmetatable({
         onToggle = options.onToggle,
+        onVisibleAchievements = options.onVisibleAchievements,
         rowHeight = options.rowHeight,
         lineHeight = options.lineHeight or 17,
         nameWidth = options.nameWidth,
@@ -342,6 +352,7 @@ function CombatAchievementList.new(parent, prettyui, options)
     }, CombatAchievementList)
 
     self.scroll = prettyui.SimpleView.new(parent, {
+        categoryID = "auto",
         x = options.x,
         y = options.y,
         width = options.width,

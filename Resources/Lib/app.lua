@@ -53,9 +53,11 @@ function App.new(registry)
     self.xpHistoryDirty = false
 
     self.accountProgress = AccountProgress.new(function() self:RefreshAccountState() end)
+    self.accountProgress.isVisible = function() return self:IsLogsVisible() end
     self.combatAchievementStateLoader = CombatAchievementStateLoader.new(
         registry.byID.combat_achievements.records,
-        function() self:RefreshAchievements() end
+        function() self:RefreshAchievements() end,
+        { viewport = true, isVisible = function() return self:IsLogsVisible() end }
     )
     self.xpTracker = nil
     return self
@@ -78,11 +80,7 @@ function App:SaveState() Settings.Save(self.state) end
 -- Get sections visible in the current mode
 function App:VisibleSections()
     local sections = {}
-    for _, section in ipairs(self.registry.ordered) do
-        if section.id ~= "xp" or self.state.enableXPLogs == true then
-            sections[#sections + 1] = section
-        end
-    end
+    for _, section in ipairs(self.registry.ordered) do sections[#sections + 1] = section end
     return sections
 end
 
@@ -104,6 +102,7 @@ function App:BuildNavigation()
         local button = prettyui.SimpleButton.new(self.navigation, "", function()
             if self.dataReady then self:MountSection(sectionID) end
         end, {
+            categoryID = "auto",
             x = x,
             y = 6,
             width = buttonWidth,
@@ -138,7 +137,7 @@ end
 function App:SetXPLogsEnabled(enabled)
     local value = enabled == true
     if self.state.enableXPLogs == value then return end
-    local leavingXP = not value and self.state.activeSection == "xp"
+    local refreshSkilling = self.state.activeSection == "xp"
     self.state.enableXPLogs = value
 
     if value then
@@ -153,13 +152,12 @@ function App:SetXPLogsEnabled(enabled)
         self.xpClockPopup = nil
     end
 
-    if leavingXP then
+    if refreshSkilling then
         self:DestroyActiveView()
-        self.state.activeSection = "bosses"
     end
     self:SaveState()
     self:BuildNavigation()
-    if leavingXP and self.dataReady then self:MountSection("bosses") end
+    if refreshSkilling and self.dataReady then self:MountSection("xp") end
 end
 
 function App:RefreshAccountState()
@@ -266,9 +264,9 @@ end
 -- Reload pages that consume OTA encounter and heist data.
 function App:OnBossPatchChanged()
     local active = self.state.activeSection
-    local remount = (active == "bosses" or active == "misc")
+    local remount = (active == "bosses" or active == "misc" or active == "xp")
         and self.activeView ~= nil and FeatureLoader.IsReady(self.registry, active)
-    for _, id in ipairs({ "bosses", "thieving", "misc" }) do
+    for _, id in ipairs({ "bosses", "thieving", "misc", "xp" }) do
         local feature = self.registry.byID[id]
         if feature ~= nil then FeatureLoader.ready[feature] = nil end
     end
@@ -322,7 +320,6 @@ end
 function App:MountSection(sectionID)
     local feature = self.registry.byID[sectionID]
     if not self.dataReady or feature == nil or feature.CreatePage == nil then return false end
-    if sectionID == "xp" and self.state.enableXPLogs ~= true then sectionID = "bosses" end
     if self.state.activeSection == sectionID and self.activeView ~= nil then return true end
     self:DestroyActiveView()
     self.combatAchievementStateLoader:Shutdown()
@@ -363,12 +360,14 @@ function App:MountSection(sectionID)
         registry = self.registry,
         state = self.state,
         progress = self.accountProgress,
+        deferCollections = true,
         xpTracker = self.xpTracker,
         windowParent = self.windowParent,
         isVisible = function() return self:IsLogsVisible() end,
         closeLogs = function() self:CloseLogs() end,
         saveState = function() self:SaveState() end,
         refreshProgress = function() self.accountProgress:Refresh() end,
+        prioritizeAchievements = function(records) self.combatAchievementStateLoader:SetVisibleRecords(records) end,
     })
     if not ok then
         self.pageRoot:Destroy()
@@ -421,7 +420,7 @@ function App:CreateWindow(windowParent)
     self.navigation:SetPos(0, 0)
     self.navigation:SetSize(self.window.content.width, NAV_HEIGHT)
     self.navigation.clickthrough = true
-    UI.Rectangle(self.navigation, 0, 0, self.window.content.width, NAV_HEIGHT, 0x17130FFF)
+    UI.Rectangle(self.navigation, 0, 0, self.window.content.width, NAV_HEIGHT, 0x17130FFF):MoveToBack()
     self:BuildNavigation()
 
     -- Mount the page after its data load completes
@@ -520,8 +519,9 @@ function App:CreateContentLayer(parent)
         onQuestOrderViewChange = function(value)
             self.state.questOrderView = value == "tree" and "tree" or "linear"
             self:SaveState()
-            if self.state.activeSection == "quests" and self.activeView ~= nil then
-                self.activeView:SetOrderView(self.state.questOrderView)
+            if (self.state.activeSection == "quests" or self.state.activeSection == "achievements" and self.state.achievementTab == "quests") and self.activeView ~= nil then
+                if self.activeView.SetQuestOrderView then self.activeView:SetQuestOrderView(self.state.questOrderView)
+                else self.activeView:SetOrderView(self.state.questOrderView) end
             end
         end,
         onAchievementOrderViewChange = function(value)
