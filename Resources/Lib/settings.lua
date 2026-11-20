@@ -76,7 +76,6 @@ local function defaults()
         questStatusFilter = "all",
         questShowMiniquests = true,
         questShowSeasonalQuests = true,
-        questAvailableInQH = false,
         questRequirementsMet = false,
         questSortBy = "name",
         questUseCumulativeRequirements = true,
@@ -211,9 +210,6 @@ function Settings.Load(registry)
     end
     if type(saved.questShowSeasonalQuests) == "boolean" then
         state.questShowSeasonalQuests = saved.questShowSeasonalQuests
-    end
-    if type(saved.questAvailableInQH) == "boolean" then
-        state.questAvailableInQH = saved.questAvailableInQH
     end
     if type(saved.questRequirementsMet) == "boolean" then
         state.questRequirementsMet = saved.questRequirementsMet
@@ -384,7 +380,6 @@ function Settings.Save(state)
         questStatusFilter = state.questStatusFilter,
         questShowMiniquests = state.questShowMiniquests,
         questShowSeasonalQuests = state.questShowSeasonalQuests,
-        questAvailableInQH = state.questAvailableInQH,
         questRequirementsMet = state.questRequirementsMet,
         questSortBy = state.questSortBy,
         questUseCumulativeRequirements = state.questUseCumulativeRequirements,
