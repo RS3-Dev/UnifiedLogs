@@ -16,11 +16,13 @@ function Feature.CreatePage(parent, context)
         height = context.height,
         records = Feature.records,
         isVisible = context.isVisible,
+        onQuestHelperOpened = context.closeLogs,
         selectedID = state.selectedQuestID,
         search = state.questSearch,
         statusFilter = state.questStatusFilter,
         showMiniquests = state.questShowMiniquests,
         showSeasonalQuests = state.questShowSeasonalQuests,
+        availableInQH = state.questAvailableInQH,
         requirementsMet = state.questRequirementsMet,
         onRequirementsMetChange = function(enabled)
             state.questRequirementsMet = enabled == true
@@ -38,9 +40,10 @@ function Feature.CreatePage(parent, context)
             state.selectedQuestID, state.questSearch = selectedID, search
             if persist ~= false then context.saveState() end
         end,
-        onFilterChange = function(status, miniquests, seasonal)
+        onFilterChange = function(status, miniquests, seasonal, availableInQH)
             state.questStatusFilter = status
             state.questShowMiniquests, state.questShowSeasonalQuests = miniquests, seasonal
+            state.questAvailableInQH = availableInQH == true
             context.saveState()
         end,
         onSortChange = function(sortBy)

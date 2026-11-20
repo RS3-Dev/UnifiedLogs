@@ -32,6 +32,7 @@ function QuestDetailsPanel.new(parent, options)
 end
 
 function QuestDetailsPanel:Clear()
+    self.helperButton = nil
     self.orderEntries = {}
     if self.skillScroll ~= nil then self.skillScroll:Destroy() end
     if self.orderScroll ~= nil then self.orderScroll:Destroy() end
@@ -58,7 +59,20 @@ end
 
 function QuestDetailsPanel:RenderTitle(state, options)
     local quest = state.quest
+    local supported = options.helperQuests ~= nil and options.helperQuests[quest.id] ~= nil
     local titleWidth = self.root.width - 184
+    if supported then
+        titleWidth = math.max(1, titleWidth - 30)
+        self.helperButton = remember(self, prettyui.SimpleButton.new(
+            self.root, id.Sprite.RS3_ICON_MENU_TAB_QUEST_LIST_0, function()
+                if self.options.onOpenQuestHelper ~= nil then self.options.onOpenQuestHelper(quest.id) end
+            end, {
+                categoryID = "auto",
+                x = self.root.width - 198, y = 4, width = 24, height = 24,
+                tooltip = "Open in QuestHelper",
+            }
+        ))
+    end
     remember(
         self,
         text(self.root, string.upper(quest.name), 12, 2, titleWidth, 30, {
@@ -328,7 +342,22 @@ function QuestDetailsPanel:RenderOrder(state, options, questX, questWidth, scrol
                 alignHorizontal = ui.AlignMode.CENTRE,
             })
         end
+        local supported = options.helperQuests ~= nil and options.helperQuests[linkedQuest.id] ~= nil
         local labelWidth = rowWidth - labelX - 36
+        local icon
+        if supported then
+            local ok, measured = pcall(function()
+                return config.Font.MUSEO_SANS_13PT_BOLD:GetStringWidth(linkedQuest.name, false)
+            end)
+            labelWidth = math.max(1, math.min(ok and measured or #linkedQuest.name * 7,
+                rowWidth - labelX - 58))
+            icon = UI.NewComponent(ui.Sprite, self.orderScroll.content)
+            icon:SetPos(labelX + labelWidth + 6, y + 8)
+            icon:SetSize(16, 16)
+            icon.spriteID = id.Sprite.RS3_ICON_MENU_TAB_QUEST_LIST_0
+            icon.clickthrough = true
+            UI.ForwardScrollWheel(icon, self.orderScroll)
+        end
         local label = UI.ClickableText(
             self.orderScroll.content,
             linkedQuest.name,
@@ -346,7 +375,7 @@ function QuestDetailsPanel:RenderOrder(state, options, questX, questWidth, scrol
                 end,
             }
         )
-        self.orderEntries[#self.orderEntries + 1] = { questID = linkedQuest.id, root = label }
+        self.orderEntries[#self.orderEntries + 1] = { questID = linkedQuest.id, root = label, icon = icon }
         ProgressStyle.CompletionMark(
             self.orderScroll.content,
             rowWidth - 26,
