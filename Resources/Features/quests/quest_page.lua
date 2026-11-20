@@ -8,8 +8,11 @@ local SkillIcons = require("Resources/Shared/skills/skill_icons")
 local UI = require("Resources/Shared/ui/components")
 local SidebarLayout = require("Resources/Shared/ui/sidebar_layout")
 local SidebarList = require("Resources/Shared/ui/sidebar_list")
+local QuestHelper = require("Resources/Features/quests/quest_helper")
 
 local MENU_EVENT = "unifiedlogs_quest_menu"
+local DEPENDENCY_EVENT = "unifiedlogs_quest_dependency"
+local QUEST_SPRITE = id.Sprite.RS3_ICON_MENU_TAB_QUEST_LIST_0
 
 local SIDEBAR_WIDTH = 250
 local WORKSPACE_X = SIDEBAR_WIDTH + 8
@@ -62,6 +65,7 @@ function QuestPage.new(parent, options)
         and self.options.statusFilter or "all"
     self.showMiniquests = self.options.showMiniquests ~= false
     self.showSeasonalQuests = self.options.showSeasonalQuests ~= false
+    self.availableInQH = self.options.availableInQH == true
     self.requirementsMet = self.options.requirementsMet == true
     self.sortBy = (self.options.sortBy == "status" or self.options.sortBy == "release")
             and self.options.sortBy
@@ -152,7 +156,7 @@ function QuestPage.new(parent, options)
             self.statusFilter = tonumber(entryID) == 2 and "completed"
                 or tonumber(entryID) == 3 and "incomplete" or "all"
             self:RebuildList(true)
-            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests)
+            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
         end,
     })
     self:RefreshTypeChoices()
@@ -211,6 +215,7 @@ function QuestPage.new(parent, options)
         height = self.workspace.height,
         onBack = function() self:GoBack() end,
         onSelect = function(questID) self:SelectQuest(questID, "push") end,
+        onOpenQuestHelper = function(questID) self:OpenQuestHelper(questID) end,
         onRequirementFilterChange = function(value)
             self.requirementFilter = value
             if self.options.onRequirementFilterChange ~= nil then
@@ -224,19 +229,32 @@ function QuestPage.new(parent, options)
     if Event ~= nil and Event.MiniMenuReady ~= nil then
         Event.MiniMenuReady.Subscribe(MENU_EVENT, function(event) self:AddMiniMenuEntries(event) end)
     end
+    if Event ~= nil and Event.OptionalDependencyChanged ~= nil then
+        Event.OptionalDependencyChanged.Subscribe(DEPENDENCY_EVENT, function(event)
+            if event.pluginIdentifier ~= "questhelper" then return end
+            self.questHelperDisabled = event.enabled == false
+            self:RebuildList(true)
+            self:RebuildDetail()
+        end)
+    end
     return self
 end
 
--- Create the quest-type filters once for this page.
+-- Keep optional filters and their spacing in sync with the loaded dependency.
 function QuestPage:RefreshTypeChoices()
-    if self.typeChoices ~= nil then return end
+    local available = not self.questHelperDisabled and QuestHelper.IsAvailable()
+    if self.typeChoices ~= nil and self.showQuestHelperFilter == available then return end
+    self.showQuestHelperFilter = available
+    if self.typeChoices ~= nil then self.typeChoices:Destroy() end
     local selectedTypes = {}
     if self.showMiniquests then selectedTypes[#selectedTypes + 1] = "miniquests" end
     if self.showSeasonalQuests then selectedTypes[#selectedTypes + 1] = "seasonal" end
+    if self.availableInQH then selectedTypes[#selectedTypes + 1] = "questhelper" end
     local choices = {
         { text = "Show mini quests", value = "miniquests" },
         { text = "Show seasonal quests", value = "seasonal" },
     }
+    if available then choices[#choices + 1] = { text = "Available in QH", value = "questhelper" } end
     self.typeChoices = prettyui.CheckboxButton.new(self.filterSheet, choices, {
         categoryID = "auto",
         x = 8,
@@ -247,8 +265,9 @@ function QuestPage:RefreshTypeChoices()
         onChange = function(control)
             self.showMiniquests = control:IsSelected("miniquests")
             self.showSeasonalQuests = control:IsSelected("seasonal")
+            if self.showQuestHelperFilter then self.availableInQH = control:IsSelected("questhelper") end
             self:RebuildList(true)
-            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests)
+            self.options.onFilterChange(self.statusFilter, self.showMiniquests, self.showSeasonalQuests, self.availableInQH)
         end,
     })
     self:LayoutFilterChoices()
@@ -267,6 +286,7 @@ end
 
 function QuestPage:RebuildList(preserveScroll, revealSelected)
     self:RefreshTypeChoices()
+    self.helperQuests = not self.questHelperDisabled and QuestHelper.AvailableQuests() or {}
     local previousY = preserveScroll
             and self.sidebarList ~= nil
             and self.sidebarList:GetScrollPosition()
@@ -299,7 +319,9 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
             or self.statusFilter == "incomplete" and status ~= "complete"
         local typeMatches = (self.showMiniquests or not quest.isMiniquest)
             and (self.showSeasonalQuests or not quest.isSeasonalQuest)
-        if searchMatches and statusMatches and typeMatches
+        local helperMatches = not self.availableInQH or not self.showQuestHelperFilter
+            or self.helperQuests[quest.id] ~= nil
+        if searchMatches and statusMatches and typeMatches and helperMatches
             and (not self.requirementsMet
                 or QuestRequirements.RequirementsMet(quest, self.byID, requirementOptions)) then
             visible[#visible + 1] = { quest = quest, status = status }
@@ -324,6 +346,7 @@ function QuestPage:RebuildList(preserveScroll, revealSelected)
             label = entry.quest.name,
             complete = entry.status == "complete",
             textColour = QUEST_STATUS_COLOURS[entry.status],
+            trailingIcon = self.helperQuests[entry.quest.id] and QUEST_SPRITE or nil,
         }
     end
     self.sidebarList = SidebarList.new(self.root, {
@@ -377,8 +400,17 @@ function QuestPage:AddMiniMenuEntries(event)
     menu:Add("View quest requirements", function()
         if self.root ~= nil then self:SelectQuest(questID, "reset") end
     end)
-    -- Keep Cancel behind the quest action in native menus.
+    if not self.questHelperDisabled and self.helperQuests[questID] ~= nil then
+        menu:Add("Open QuestHelper", function()
+            if self.root ~= nil then self:OpenQuestHelper(questID) end
+        end)
+    end
+    -- Native menus display entries in reverse order. Keep requirements first.
     if type(menu.Swap) == "function" then
+        local count = #(menu.entries or {})
+        if count >= 2 and menu.entries[count].verbText == "Open QuestHelper" then
+            menu:Swap(count, count - 1)
+        end
         for index, entry in ipairs(menu.entries or {}) do
             if entry.verbText == "Cancel" then
                 for current = index, 2, -1 do menu:Swap(current, current - 1) end
@@ -387,6 +419,37 @@ function QuestPage:AddMiniMenuEntries(event)
         end
     end
     return true
+end
+
+function QuestPage:OpenQuestHelper(questID)
+    local opened, reason = false, "unavailable"
+    if not self.questHelperDisabled then opened, reason = QuestHelper.OpenQuest(questID) end
+    if opened then
+        if self.selectedID ~= questID then
+            self:SelectQuest(questID, "reset")
+        else
+            self.searchDirty = false
+            self.options.onStateChange(self.selectedID, self.search, true)
+        end
+        if self.options.onQuestHelperOpened ~= nil then self.options.onQuestHelperOpened() end
+        return true
+    end
+    self:RebuildList(true)
+    self:RebuildDetail()
+    if self.helperPopup ~= nil then self.helperPopup:Destroy(); self.helperPopup = nil end
+    if prettyui.AchievementPopup ~= nil and prettyui.AchievementPopup.show ~= nil then
+        self.helperPopup = prettyui.AchievementPopup.show({
+            categoryID = "auto",
+            title = "QUESTHELPER",
+            text = reason == "not_ready" and "QuestHelper is not ready. Try again once you are in game."
+                or "Could not open this quest. Check that QuestHelper is enabled and supports it.",
+            width = 380, x = -190, y = -46, xAnchor = 0.5, yAnchor = 0.5,
+            onComplete = function(completed)
+                if self.helperPopup == completed then self.helperPopup = nil end
+            end,
+        })
+    end
+    return false
 end
 
 function QuestPage:SelectQuest(questID, navigation)
@@ -450,6 +513,7 @@ function QuestPage:RebuildDetail()
         requirementFilter = self.requirementFilter,
     })
     self.detailView:Render(state, {
+        helperQuests = self.helperQuests,
         selectedID = self.selectedID,
         previousQuest = self.byID[self.history[#self.history]],
     })
@@ -457,6 +521,10 @@ end
 
 function QuestPage:Destroy()
     if Event ~= nil and Event.MiniMenuReady ~= nil then Event.MiniMenuReady.Unsubscribe(MENU_EVENT) end
+    if Event ~= nil and Event.OptionalDependencyChanged ~= nil then
+        Event.OptionalDependencyChanged.Unsubscribe(DEPENDENCY_EVENT)
+    end
+    if self.helperPopup ~= nil then self.helperPopup:Destroy(); self.helperPopup = nil end
     if self.searchDirty then
         self.searchDirty = false
         self.options.onStateChange(self.selectedID, self.search, true)
