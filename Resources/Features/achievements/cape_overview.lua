@@ -24,9 +24,13 @@ local PROGRESS_HEIGHT = 6
 local BASE_MODEL_SCALE = 1.25
 local MODEL_GROWTH = 1.15
 local MODEL_EVENT = "unifiedlogs_cape_models"
+local SUMMARY_EVENT = "unifiedlogs_cape_summaries"
+local SUMMARY_CACHE = setmetatable({}, { __mode = "k" })
 
 local function summaryFor(self, cape)
-    if self.options.fastSummary then return CapeRequirements.FastSummary(cape) end
+    if self.summaryLoader then
+        return self.summaryLoader.summaries[cape] or { complete = 0, total = 0, pending = 1 }
+    end
     return CapeRequirements.Summary(cape, self.options.snapshot)
 end
 
@@ -70,9 +74,31 @@ function CapeOverview.new(parent, options)
     self.modelCanvases = {}
     self.pendingModels = {}
     self.progressCards = {}
+    if options.asyncSummary then
+        local owner = options.cacheOwner or self
+        local key = tostring(options.playerID or "unknown") .. ":" .. (options.orderView == "tree" and "tree" or "linear")
+        SUMMARY_CACHE[owner] = SUMMARY_CACHE[owner] or {}
+        SUMMARY_CACHE[owner][key] = SUMMARY_CACHE[owner][key] or {}
+        self.summaryCache = SUMMARY_CACHE[owner][key]
+        self:RefreshAccountState()
+    end
     self:Build()
     self:LoadModels()
     return self
+end
+
+-- Keep cached percentages visible while fresh achievement states load.
+function CapeOverview:RefreshAccountState()
+    if not self.summaryCache then return end
+    self.summaryLoader = CapeRequirements.NewSummaryLoader(
+        self.options.capes or {}, self.options.orderView, self.summaryCache)
+    Event.Logic.Unsubscribe(SUMMARY_EVENT)
+    Event.Logic.Subscribe(SUMMARY_EVENT, function()
+        if self.options.isVisible and not self.options.isVisible() then return end
+        local pending, changed = self.summaryLoader:Tick()
+        if changed then self:RefreshProgress() end
+        if not pending then Event.Logic.Unsubscribe(SUMMARY_EVENT) end
+    end)
 end
 
 function CapeOverview:Build()
@@ -189,6 +215,7 @@ end
 
 function CapeOverview:Destroy()
     Event.Logic.Unsubscribe(MODEL_EVENT)
+    Event.Logic.Unsubscribe(SUMMARY_EVENT)
     for _, control in ipairs(self.controls) do
         control:Destroy()
     end

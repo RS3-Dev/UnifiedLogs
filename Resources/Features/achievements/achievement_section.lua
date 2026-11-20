@@ -12,7 +12,10 @@ function Page.new(parent, context, feature)
         end
         if mode == "overview" then
             return require("Resources/Features/achievements/cape_overview").new(mount, {
-                width = mount.width, height = mount.height, capes = feature.capes, fastSummary = true,
+                width = mount.width, height = mount.height, capes = feature.capes, asyncSummary = true,
+                isVisible = child.isVisible,
+                orderView = child.state.achievementOrderView,
+                cacheOwner = child.state, playerID = child.state.playerID,
                 onSelect = function(cape) child.state.achievementMode = cape; host:SetMode("achievements") end,
             })
         end
@@ -22,14 +25,10 @@ function Page.new(parent, context, feature)
             state = child.state, saveState = child.saveState, isVisible = child.isVisible,
         })
     end)
-    local refresh = section.RefreshAccountState
-    section.RefreshAccountState = function(self)
-        if context.state.achievementTab == "overview" then self:SetMode("overview", true)
-        else return refresh(self) end
-    end
     local setOrder = section.SetOrderView
     section.SetOrderView = function(self, value)
         if context.state.achievementTab == "achievements" then return setOrder(self, value) end
+        if context.state.achievementTab == "overview" then self:SetMode("overview", true) end
     end
     section.SetQuestOrderView = function(self, value)
         if context.state.achievementTab == "quests" and self.activeView then return self.activeView:SetOrderView(value) end

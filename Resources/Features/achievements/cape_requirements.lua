@@ -261,7 +261,7 @@ function CapeRequirements.FilterRows(rows, mode, query)
 end
 
 -- Calculate requirement progress
-local function progress(root)
+local function progress(root, orderView)
     local complete, total, pending, visited = 0, 0, 0, { [root.key] = true }
     -- Visit requirement nodes
     local function visit(node)
@@ -273,6 +273,7 @@ local function progress(root)
         for _, child in ipairs(node.children) do
             visit(child)
         end
+        if orderView == "tree" then visited[node.key] = nil end
     end
     for _, child in ipairs(root.children) do
         visit(child)
@@ -307,9 +308,10 @@ local function buildGraph(cape, snapshot, details)
         end
         cache[key], path[key] = node, true
         trackNode(snapshot, node, function()
-            node.prereqsComplete = field(achievement, "prereqsComplete")
+            if details then node.prereqsComplete = field(achievement, "prereqsComplete") end
             return achievementComplete(achievement)
         end)
+        if snapshot and snapshot.onVisit then snapshot.onVisit() end
         local seen = {}
         for _, family in ipairs({ "requirements", "prereqs" }) do
             local requirements = field(achievement, family)
@@ -337,14 +339,34 @@ local function buildGraph(cape, snapshot, details)
     return root
 end
 
--- Read the cape's native progress without enumerating any requirements.
-function CapeRequirements.FastSummary(cape)
-    local source = achievementFromCape(cape)
-    local value = tonumber(field(source, "progress"))
-    if value == nil then return { available = false, complete = 0, total = 10000 } end
-    value = value == -2 and 10000 or math.max(0, math.min(10000, value))
-    return { available = true, complete = value, total = 10000,
-        label = string.format("%.1f%%", value / 100) }
+-- Count recursive achievements in small batches, sharing reads across capes.
+function CapeRequirements.NewSummaryLoader(capes, orderView, cached)
+    local loader = { summaries = cached or {}, revision = 0 }
+    local visited = 0
+    local snapshot = { summaryNodes = {}, onVisit = function()
+        visited = visited + 1
+        if visited >= 16 then visited = 0; coroutine.yield() end
+    end }
+    loader.work = coroutine.create(function()
+        for _, cape in ipairs(capes) do
+            local summary = CapeRequirements.Summary(cape, snapshot, orderView)
+            if summary.available and summary.total > 0 then
+                summary.label = string.format("%.1f%%", 100 * summary.complete / summary.total)
+            end
+            if summary.available or loader.summaries[cape] == nil then
+                loader.summaries[cape] = summary
+                loader.revision = loader.revision + 1
+            end
+        end
+    end)
+    function loader:Tick()
+        if coroutine.status(self.work) == "dead" then return false end
+        local revision = self.revision
+        local ok, message = coroutine.resume(self.work)
+        assert(ok, message)
+        return coroutine.status(self.work) ~= "dead", self.revision ~= revision
+    end
+    return loader
 end
 
 -- Build a cape requirement snapshot
@@ -363,10 +385,10 @@ function CapeRequirements.Rows(data, orderView)
 end
 
 -- Build the cape progress summary
-function CapeRequirements.Summary(cape, snapshot)
+function CapeRequirements.Summary(cape, snapshot, orderView)
     local root = buildGraph(cape, snapshot, false)
     if root == nil then return { complete = 0, total = 0, available = false } end
-    local complete, total, pending = progress(root)
+    local complete, total, pending = progress(root, orderView)
     return {
         complete = complete,
         total = total,
