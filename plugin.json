@@ -1,6 +1,6 @@
 {
   "name": "Unified Logs",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "contactEmailAddress": "plugins@rs3.dev",
   "hasRibbonIcon": true,
   "requiredDependencies": {"prettyui": 6398181},
