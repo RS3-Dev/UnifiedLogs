@@ -1,10 +1,10 @@
 {
   "name": "Unified Logs",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "contactEmailAddress": "plugins@rs3.dev",
   "hasRibbonIcon": true,
   "requiredDependencies": {"prettyui": 6398181},
-  "optionalDependencies": {"questhelper": 6399152},
+  "optionalDependencies": {},
   "urls": {"featfinder": "https://raw.githubusercontent.com"},
   "requiredPermissions": ["httpAccess", "trackingAccess"],
   "optionalPermissions": []

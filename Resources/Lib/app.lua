@@ -364,7 +364,6 @@ function App:MountSection(sectionID)
         xpTracker = self.xpTracker,
         windowParent = self.windowParent,
         isVisible = function() return self:IsLogsVisible() end,
-        closeLogs = function() self:CloseLogs() end,
         saveState = function() self:SaveState() end,
         refreshProgress = function() self.accountProgress:Refresh() end,
         prioritizeAchievements = function(records) self.combatAchievementStateLoader:SetVisibleRecords(records) end,
